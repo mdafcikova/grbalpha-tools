@@ -1,1 +1,1 @@
-"""Ultimatni Prirucka."""
+"""Tools to work with GRBAlpha data."""
