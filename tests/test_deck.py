@@ -1,4 +1,4 @@
-from ultimatni_prirucka.deck import Deck, Card, ToggledCard
+from grbalpha_tools.deck import Deck, Card, ToggledCard
 from random import shuffle
 import pytest
 from dataclasses import FrozenInstanceError
