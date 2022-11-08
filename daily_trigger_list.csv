@@ -1,0 +1,15 @@
+UTC,F,day_fraction,f,longitude,latitude,mission,URL
+2022-11-08 11:19:33.130,0.944,0.47191,301440,-167.48,69.9,FERMI GCN,https://gcn.gsfc.nasa.gov/fermi_grbs.html
+2022-11-08 11:11:43.470,0.933,0.46647,297472,-41.04,76.96,INTEGRAL ISGRI GCN,https://gcn.gsfc.nasa.gov/integral_grbs.html
+2022-11-08 11:10:40.000,0.931,0.46574,296704,-32.65,73.55,FRB,https://www.swift.psu.edu/guano/
+2022-11-08 02:07:04.000,0.176,0.08824,24960,-51.16,-5.95,GECAM GRB,https://www.swift.psu.edu/guano/
+2022-11-07 21:00:17.000,0.75,0.8752,231552,46.55,69.22,FRB,https://www.swift.psu.edu/guano/
+2022-11-07 05:53:20.570,0.491,0.24537,138368,92.8,-68.77,INTEGRAL ISGRI GCN,https://gcn.gsfc.nasa.gov/integral_grbs.html
+2022-11-07 03:15:40.000,0.272,0.13588,59520,101.51,55.43,GECAM GRB,https://www.swift.psu.edu/guano/
+2022-11-07 02:16:27.000,0.19,0.09476,29952,-54.42,-12.82,FRB,https://www.swift.psu.edu/guano/
+2022-11-07 01:22:54.000,0.115,0.05757,2944,141.92,-9.4,GECAM GRB,https://www.swift.psu.edu/guano/
+2022-11-07 01:08:22.000,0.095,0.04748,-4224,159.5,-63.4,FRB,https://www.swift.psu.edu/guano/
+2022-11-07 00:04:52.880,0.007,0.00338,-35840,148.88,56.2,FERMI GCN,https://gcn.gsfc.nasa.gov/fermi_grbs.html
+2022-11-06 17:32:24.140,0.462,0.73083,127872,-103.99,16.97,INTEGRAL ISGRI GCN,https://gcn.gsfc.nasa.gov/integral_grbs.html
+2022-11-06 14:18:16.200,0.192,0.59602,30720,-53.84,5.13,INTEGRAL ISGRI GCN,https://gcn.gsfc.nasa.gov/integral_grbs.html
+2022-11-06 06:31:27.540,0.544,0.27184,157440,55.93,45.28,FERMI GCN,https://gcn.gsfc.nasa.gov/fermi_grbs.html

@@ -6,7 +6,7 @@ import matplotlib.dates as mdates
 import scipy.optimize as opt
 
 #%% load grbalpha data
-filepath = r'C:\Users\maria\Desktop\GRBs\files\r22k05b_284544.json'    
+filepath = r'C:\Users\maria\Desktop\GRBs\files\r22k07a.json'    
 time_format = '%Y-%m-%dZ%H:%M:%S.%f'
 
 datafile = pd.read_json(filepath,lines=True)
@@ -110,3 +110,5 @@ tunit = 'min'
 for trigger, mission in zip(trig_date,trig_mission):
     check_triggers(trigger,mission,dtvalue)
 
+
+# %%
