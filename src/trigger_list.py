@@ -52,10 +52,3 @@ df.mission = mission
 df.URL = url
 
 df.to_csv('daily_trigger_list.csv',index=False)
-
-
-
-
-
-
-# %%
