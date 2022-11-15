@@ -6,7 +6,7 @@ import matplotlib.dates as mdates
 import scipy.optimize as opt
 
 #%% load grbalpha data
-filepath = r'C:\Users\maria\Desktop\GRBs\files\r22k07a.json'    
+filepath = r'C:\Users\maria\Desktop\CubeSats\GRBs\files\r22k14b_245888.json'
 time_format = '%Y-%m-%dZ%H:%M:%S.%f'
 
 datafile = pd.read_json(filepath,lines=True)
@@ -18,7 +18,7 @@ mid = pd.DataFrame.from_records(mid.to_list())
 time = pd.to_datetime(mid.utc,format=time_format)
 
 # load triggers
-trig = pd.read_csv(r'C:\Users\maria\Desktop\all_triggers.csv',usecols=['grb_date','mission'])
+trig = pd.read_csv(r'C:\Users\maria\Desktop\CubeSats\all_triggers.csv',usecols=['grb_date','mission'])
 trig_date = pd.to_datetime(trig.grb_date)
 cond_trig_in_data = np.logical_and(trig_date > time[0], trig_date < time[len(time)-1])
 trig_mission = trig.mission[cond_trig_in_data].reset_index(drop=True)
@@ -75,7 +75,7 @@ def check_triggers(grb_date,mission,dtvalue):
         return xdata, od, do, popt, snr, left_lim
 
     xdata, od, do, popt, snr, left_lim = make_fit(cps0+cps1,
-                                                int(len(time_list)/2-2),int(len(time_list)/2+2)) 
+                                                int(len(time_list)/2-7),int(len(time_list)/2+15)) 
 
     print(f'trigger: {grb_date}')
     print(f'SNR (70-370 keV) = {snr}')
@@ -83,32 +83,39 @@ def check_triggers(grb_date,mission,dtvalue):
     # plot
     fig, ax = plt.subplots(figsize=(10,4),dpi=200)
     fig.suptitle(f'{mission}: {grb_date}')
-    ax.xaxis.set_major_locator(mdates.SecondLocator(interval=30))#byminute=[40,50,0,10]))
+    ax.xaxis.set_major_locator(mdates.SecondLocator(interval=10))#byminute=[40,50,0,10]))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
     plt.axvline(grb_date,c='r',lw=0.75)
-    # plt.axvline(time_list[od],c='k',lw=0.5)
-    # plt.axvline(time_list[do],c='k',lw=0.5)
-
-    xlim = 0#int(len(time_list)/2-10)
+    plt.axvline(time_list[od],c='k',lw=0.5)
+    plt.axvline(time_list[do],c='k',lw=0.5)
 
     # plt.plot(time_list[left_lim:od+1]+time_list[do:],f(np.array(xdata),*popt),'b--',lw=0.9,label='fit')
-    plt.step(time_list[xlim:],cps0[xlim:],where='mid',lw=1,label='70 - 110 keV')
-    plt.step(time_list[xlim:],cps1[xlim:],'--',where='mid',lw=1,label='110 - 370 keV')
-    plt.step(time_list[xlim:],cps2[xlim:],'-.',where='mid',lw=1,label='370 - 630 keV')
-    plt.step(time_list[xlim:],cps3[xlim:],':',where='mid',lw=1,label='630 - 890 keV')
+    plt.step(time_list,cps0,where='mid',lw=1,label='70 - 110 keV')
+    plt.errorbar(time_list,cps0,yerr=np.sqrt(cps0),c='C0')
+    plt.step(time_list,cps1,where='mid',lw=1,label='110 - 370 keV')
+    plt.errorbar(time_list,cps1,yerr=np.sqrt(cps1),c='C1')
+    plt.step(time_list,cps2,'-.',where='mid',lw=1,label='370 - 630 keV')
+    plt.errorbar(time_list,cps2,yerr=np.sqrt(cps2),c='C2')
+    plt.step(time_list,cps3,':',where='mid',lw=1,label='630 - 890 keV')
+    plt.errorbar(time_list,cps3,yerr=np.sqrt(cps3),c='C3')
         
-    plt.xlim(min(time_list[xlim:]),max(time_list))
+    plt.xlim(min(time_list[:]),max(time_list))
     plt.xlabel('time [MM:SS]')
     plt.ylabel('count rate [counts/s]')
-    plt.legend()
+    plt.legend(loc='lower left')
     plt.show()
 
 #%% run function
-dtvalue = 2.5
+dtvalue = 2
 tunit = 'min'
 
 for trigger, mission in zip(trig_date,trig_mission):
     check_triggers(trigger,mission,dtvalue)
 
+#%% run function manually
+# trigger_list = ['2022-10-17 11:14:43.0']
+# mission_list = ['SGR']
+# for trigger, mission in zip(trigger_list,mission_list):
+#     check_triggers(pd.to_datetime(trigger),mission,dtvalue)
 
 # %%
