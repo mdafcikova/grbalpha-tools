@@ -5,7 +5,7 @@ Creates a list of GRB triggers in the past x hours.
 import pandas as pd
 from pyorbital.orbital import Orbital
 
-trigger_list = pd.read_csv(r'C:\Users\maria\Desktop\all_triggers.csv')
+trigger_list = pd.read_csv(r'C:\Users\maria\Desktop\CubeSats\all_triggers.csv')
 
 timestamp = trigger_list.grb_date.astype('datetime64')
 end_time = pd.to_datetime('now') - pd.Timedelta('58 h')
@@ -45,7 +45,7 @@ df = pd.DataFrame(columns=['UTC','F','day_fraction','f','longitude','latitude','
 df.UTC = utc
 df.F = F
 df.day_fraction = dfrac
-df.f = (128 * round((df.F*360e3 - 76800/2)/128)).astype(int)
+df.f = (128 * round((df.F*360e3 - 51200/2)/128)).astype(int)
 df.longitude = lon.round(2)
 df.latitude = lat.round(2)
 df.mission = mission
