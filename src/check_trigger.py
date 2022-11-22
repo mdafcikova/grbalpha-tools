@@ -6,7 +6,7 @@ import matplotlib.dates as mdates
 import scipy.optimize as opt
 
 #%% load grbalpha data
-filepath = r'C:\Users\maria\Desktop\CubeSats\GRBs\files\r22k14b_245888.json'
+filepath = r'C:\Users\maria\Desktop\CubeSats\GRBs\files\r22k20b_178176.json'
 time_format = '%Y-%m-%dZ%H:%M:%S.%f'
 
 datafile = pd.read_json(filepath,lines=True)
@@ -70,12 +70,12 @@ def check_triggers(grb_date,mission,dtvalue):
         index = np.argmax(c)
         # index = int(len(time_list)/2)
         crb = cps_bgd(timestamp[index])
-        err = np.sqrt(crb*exp)/exp
+        err = np.sqrt(c[index]*exp)/exp
         snr = (c[index]-crb)/err
         return xdata, od, do, popt, snr, left_lim
 
     xdata, od, do, popt, snr, left_lim = make_fit(cps0+cps1,
-                                                int(len(time_list)/2-7),int(len(time_list)/2+15)) 
+                                                int(len(time_list)/2-6),int(len(time_list)/2+60)) 
 
     print(f'trigger: {grb_date}')
     print(f'SNR (70-370 keV) = {snr}')
@@ -86,27 +86,27 @@ def check_triggers(grb_date,mission,dtvalue):
     ax.xaxis.set_major_locator(mdates.SecondLocator(interval=10))#byminute=[40,50,0,10]))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
     plt.axvline(grb_date,c='r',lw=0.75)
-    plt.axvline(time_list[od],c='k',lw=0.5)
-    plt.axvline(time_list[do],c='k',lw=0.5)
+    # plt.axvline(time_list[od],c='k',lw=0.5)
+    # plt.axvline(time_list[do],c='k',lw=0.5)
 
     # plt.plot(time_list[left_lim:od+1]+time_list[do:],f(np.array(xdata),*popt),'b--',lw=0.9,label='fit')
     plt.step(time_list,cps0,where='mid',lw=1,label='70 - 110 keV')
-    plt.errorbar(time_list,cps0,yerr=np.sqrt(cps0),c='C0')
-    plt.step(time_list,cps1,where='mid',lw=1,label='110 - 370 keV')
-    plt.errorbar(time_list,cps1,yerr=np.sqrt(cps1),c='C1')
+    plt.errorbar(time_list,cps0,yerr=np.sqrt(cps0),c='C0',lw=0.5,fmt=' ')
+    plt.step(time_list,cps1,'--',where='mid',lw=1,label='110 - 370 keV')
+    plt.errorbar(time_list,cps1,yerr=np.sqrt(cps1),c='C1',lw=0.5,fmt=' ')
     plt.step(time_list,cps2,'-.',where='mid',lw=1,label='370 - 630 keV')
-    plt.errorbar(time_list,cps2,yerr=np.sqrt(cps2),c='C2')
+    plt.errorbar(time_list,cps2,yerr=np.sqrt(cps2),c='C2',lw=0.5,fmt=' ')
     plt.step(time_list,cps3,':',where='mid',lw=1,label='630 - 890 keV')
-    plt.errorbar(time_list,cps3,yerr=np.sqrt(cps3),c='C3')
+    plt.errorbar(time_list,cps3,yerr=np.sqrt(cps3),c='C3',lw=0.5,fmt=' ')
         
     plt.xlim(min(time_list[:]),max(time_list))
     plt.xlabel('time [MM:SS]')
     plt.ylabel('count rate [counts/s]')
-    plt.legend(loc='lower left')
+    plt.legend()#loc='lower left')
     plt.show()
 
 #%% run function
-dtvalue = 2
+dtvalue = 1
 tunit = 'min'
 
 for trigger, mission in zip(trig_date,trig_mission):
