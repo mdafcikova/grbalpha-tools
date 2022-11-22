@@ -8,7 +8,7 @@ import matplotlib.dates as mdates
 
 #%% load file 
 
-df = pd.read_csv(r'C:\Users\maria\Desktop\GRBAlpha_operations\cmp-clock-6.txt',sep=': ',header=None)
+df = pd.read_csv(r'C:\Users\maria\Desktop\CubeSats\GRBAlpha_operations\cmp-clock-6.txt',sep=': ',header=None)
 df = df.pivot(columns=0)[1]
 
 df['Node  6, got clock'] = df['Node  6, got clock'].shift(periods=-1)
