@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from collections.abc import MutableSequence
 import pandas as pd
+import numpy as np
 
 @dataclass(frozen=True)
 class Chunk():
@@ -45,7 +46,40 @@ class Observation():#MutableSequence):
                      alt=self.altitude[time],
                      data=self.data[time]
                      )
- 
+
+    def is_GRB_in_file(self):
+        trig = pd.read_csv(r'C:\Users\maria\Desktop\CubeSats\all_triggers.csv',usecols=['grb_date','mission'])
+        trig_date = pd.to_datetime(trig.grb_date)
+        cond_trig_in_data = np.logical_and(trig_date > self.time_utc[0], trig_date < self.time_utc[len(self.time_utc)-1])
+        trig_mission = trig.mission[cond_trig_in_data].reset_index(drop=True)
+        trig_date = trig_date[cond_trig_in_data].reset_index(drop=True)
+        if len(trig_date)==0:
+            return 'No GRB in file.'
+        else:
+            return [x for x in trig_date], [x for x in trig_mission]
+
+    def is_SGR_in_file(self,path=r'C:\Users\maria\Desktop\CubeSats\SGRJ1935+2154_list.csv'):
+        trig = pd.read_csv(path,usecols=['time','mission'])
+        trig_date = pd.to_datetime(trig.time)
+        cond_trig_in_data = np.logical_and(trig_date > self.time_utc[0], trig_date < self.time_utc[len(self.time_utc)-1])
+        trig_mission = trig.mission[cond_trig_in_data].reset_index(drop=True)
+        trig_date = trig_date[cond_trig_in_data].reset_index(drop=True)
+        if len(trig_date)==0:
+            return 'No SGR in file.'
+        else:
+            return [x for x in trig_date], [x for x in trig_mission]
+
+    def is_SF_in_file(self):
+        trig = pd.read_csv(r'C:\Users\maria\Desktop\CubeSats\KW_sf_list.csv',usecols=['DateTime','Class'])
+        trig_date = pd.to_datetime(trig.DateTime)
+        cond_trig_in_data = np.logical_and(trig_date > self.time_utc[0], trig_date < self.time_utc[len(self.time_utc)-1])
+        sf_class = trig.Class[cond_trig_in_data].reset_index(drop=True)
+        trig_date = trig_date[cond_trig_in_data].reset_index(drop=True)
+        if len(trig_date)==0:
+            return 'No SF in file.'
+        else:
+            return [x for x in trig_date], [x for x in sf_class]
+
     def check_event(self, event_time, event_type, event_ra=None, event_dec=None):
         '''
         plots +-dt part of the file around the event_time
