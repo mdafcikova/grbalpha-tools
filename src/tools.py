@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from collections.abc import MutableSequence
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import scipy.optimize as opt
 
 @dataclass(frozen=True)
 class Chunk():
@@ -19,22 +22,21 @@ class Observation():#MutableSequence):
     time_format: str = '%Y-%m-%dZ%H:%M:%S.%f'
     
     def __init__(self,filepath:str):
-        self.df = pd.read_json(filepath,lines=True)
-        self.mid = self.df[self.df['type']=='spectrum'].mid.reset_index(drop=True)
-        self.mid = pd.DataFrame.from_records(self.mid.to_list())
+        df = pd.read_json(filepath,lines=True)
+        mid = df[df['type']=='spectrum'].mid.reset_index(drop=True)
+        mid = pd.DataFrame.from_records(mid.to_list())
     
-        self.exp_time = self.df[self.df['type']=='meta']['exptime'].reset_index(drop=True)[0]
-        self.bin_mode = self.df[self.df['type']=='spectrum']['bin_mode'].reset_index(drop=True)[0]
-        self.cutoff = self.df[self.df['type']=='meta']['cutoff'].reset_index(drop=True)[0]
-        self.time_utc = pd.to_datetime(self.mid.utc,format='%Y-%m-%dZ%H:%M:%S.%f')
-        self.time_utc = self.time_utc.set_axis(self.time_utc.round('S'))
-        self.longitude = self.mid.lon.set_axis(self.time_utc.round('S'))
-        self.latitude = self.mid.lat.set_axis(self.time_utc.round('S'))
-        self.altitude = self.mid.alt.set_axis(self.time_utc.round('S'))
-        self.data = self.df[self.df['type']=='spectrum'].data.set_axis(self.time_utc.round('S'))
+        self.exp_time = df[df['type']=='meta']['exptime'].reset_index(drop=True)[0]
+        self.bin_mode = df[df['type']=='spectrum']['bin_mode'].reset_index(drop=True)[0]
+        self.cutoff = df[df['type']=='meta']['cutoff'].reset_index(drop=True)[0]
 
-    # def __len__(self):
-    #     return len(self.mid)
+        self.time_utc = pd.to_datetime(mid.utc,format='%Y-%m-%dZ%H:%M:%S.%f')
+        self.time_utc = self.time_utc.set_axis(self.time_utc.round('S'))
+        self.longitude = mid.lon.set_axis(self.time_utc.round('S'))
+        self.latitude = mid.lat.set_axis(self.time_utc.round('S'))
+        self.altitude = mid.alt.set_axis(self.time_utc.round('S'))
+        self.data = df[df['type']=='spectrum'].data.set_axis(self.time_utc.round('S'))
+        self.data = pd.DataFrame.from_records(self.data,index=self.data.index)
 
     def get_chunk(self,time:str):
         return Chunk(exp_time=self.exp_time,
@@ -56,7 +58,7 @@ class Observation():#MutableSequence):
         if len(trig_date)==0:
             return 'No GRB in file.'
         else:
-            return [x for x in trig_date], [x for x in trig_mission]
+            return [x for x in zip(trig_date,trig_mission)]
 
     def is_SGR_in_file(self,path=r'C:\Users\maria\Desktop\CubeSats\SGRJ1935+2154_list.csv'):
         trig = pd.read_csv(path,usecols=['time','mission'])
@@ -67,7 +69,7 @@ class Observation():#MutableSequence):
         if len(trig_date)==0:
             return 'No SGR in file.'
         else:
-            return [x for x in trig_date], [x for x in trig_mission]
+            return [x for x in zip(trig_date,trig_mission)]
 
     def is_SF_in_file(self):
         trig = pd.read_csv(r'C:\Users\maria\Desktop\CubeSats\KW_sf_list.csv',usecols=['DateTime','Class'])
@@ -78,7 +80,129 @@ class Observation():#MutableSequence):
         if len(trig_date)==0:
             return 'No SF in file.'
         else:
-            return [x for x in trig_date], [x for x in sf_class]
+            return [x for x in zip(trig_date,sf_class)]
+    
+    def ADC_to_keV(self,ADC):
+        keV = 4.08*ADC - 154
+        keV_cutoff = 4.08*self.cutoff - 154
+        if (keV < keV_cutoff):
+            keV = keV_cutoff
+        return round(keV,-1)
+    
+    def get_event_stat(self, event_time, event_type:str, 
+                       dtvalue:float=1.5, tunit:str='min', 
+                       llim:int=1, rlim:int=1, vlines:bool=False, 
+                       fit_function:str='linear'or'polynom' or function):
+
+        dt = pd.Timedelta(dtvalue,tunit)
+        start = pd.to_datetime(event_time) - dt
+        end = pd.to_datetime(event_time) + dt 
+        ncols = int(2**8/2**self.bin_mode)
+        nrows = int(2*dtvalue*60/self.exp_time)
+        cps = np.zeros((ncols,nrows))
+
+        time_list = []
+        timestamp = []
+
+        j = 0
+        for i in self.data.index:
+            t = self.time_utc[i]
+            if np.logical_and(t > start,t < end):
+                time_list.append(t)
+                timestamp.append(j)
+                for n in range(ncols):
+                    cps[n][j] = self.data[n][i]
+                j += 1
+
+        index_from = int(len(time_list)/2-llim)
+        index_to = int(len(time_list)/2+rlim)
+
+        if (fit_function == 'linear'):
+            def function(x,a1,a0):
+                return a1*x + a0
+        elif (fit_function == 'polynom'):
+            def function(x,a2,a1,a0):
+                return a2*x*x + a1*x + a0
+
+        def make_fit(ADC_lower_limit,ADC_upper_limit,f):
+            E_low = self.ADC_to_keV(ADC_lower_limit)
+            E_high = self.ADC_to_keV(ADC_upper_limit)
+            E_n_bins = int(2**8/2**self.bin_mode)
+
+            first_band = ADC_lower_limit*E_n_bins/256
+            last_band = ADC_upper_limit*E_n_bins/256
+
+            c = np.zeros(nrows)
+            for band in range(int(first_band),int(last_band)):
+                c += cps[band]
+            
+            # data for background fit
+            xdata = timestamp[:index_from]+timestamp[index_to:]
+            ydata = np.concatenate((c[:index_from],c[index_to:]))
+
+            popt, pcov = opt.curve_fit(f,np.array(xdata),ydata)
+            
+            def cps_bgd(x):
+                return f(x,*popt)
+
+            # stat at peak
+            index_peak = np.where(c == np.max(c[index_from:index_to]))[0][0]
+            peak_c = np.max(c[index_from:index_to])
+
+            peak_time = time_list[index_peak]
+            crb = cps_bgd(timestamp[index_peak]) # count rate background
+            err = np.sqrt(peak_c*self.exp_time)/self.exp_time
+            peak_raw_cr = peak_c-crb
+            snr_peak = peak_raw_cr/err
+            
+            # T90 calculation
+            t_event = timestamp[index_from:index_to]
+            c_event = c[index_from:index_to]
+            c_raw_event = c_event - cps_bgd(c[index_from:index_to])
+            c_cum = np.cumsum(c_raw_event)
+            c_cum_5 = c_cum[-1] * 0.05
+            c_cum_95 = c_cum[-1] * 0.95
+            
+            def find_nearest(a, a0):
+                # find element in nd array 'a' closest to the scalar value 'a0'
+                idx = np.abs(a - a0).argmin()
+                return a.flat[idx]
+
+            index_t90_start = np.where(c_cum == find_nearest(c_cum,c_cum_5))[0][0]
+            index_t90_end = np.where(c_cum == find_nearest(c_cum,c_cum_95))[0][0]
+
+            t90 = t_event[index_t90_end] - t_event[index_t90_start]
+            c_event_t90 = sum(c_event[index_t90_start:index_t90_end+1])
+            cntb_t90 = 0
+            for t in t_event[index_t90_start:index_t90_end+1]:
+                cntb_t90 += cps_bgd(t)
+
+            err_t90 = np.sqrt(c_event_t90)
+            c_raw_event_t90 = c_event_t90-cntb_t90
+            snr_t90 = c_raw_event_t90/err_t90
+
+            # print results:
+            print(f"statistics in {E_low}-{E_high} keV for a {event_type} at {event_time}:\n"+
+                  f"peak time [utc]: {peak_time}\n"+
+                  f"SNR at peak: {snr_peak}\n"+
+                  f"count rate [cnt/s] above background at peak: {peak_raw_cr}\n"+
+                  f"T90 [s]: {t90}\n"+
+                  f"SNR in T90: {snr_t90}\n"+
+                  f"counts above background in T90: {c_raw_event_t90}\n")
+
+            return xdata, popt, E_low, E_high
+        
+        make_fit(ADC_lower_limit=0,ADC_upper_limit=128,f=function)
+        xdata, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
+             
+
+        return # file with values
+
+    def plot_trigger(self, event_time, event_type):
+        return # timeplot 
+
+    def plot_skymap(self, event_time, event_type, event_ra, event_dec):
+        return # skymap
 
     def check_event(self, event_time, event_type, event_ra=None, event_dec=None):
         '''
@@ -94,7 +218,7 @@ class Observation():#MutableSequence):
                  was Sun in FoV? Y/N
         '''
 
-        return print('hi')# plot + skymap + file with values
+        return self.get_event_stat(), self.plot_trigger(), self.plot_skymap()
 
 
 
