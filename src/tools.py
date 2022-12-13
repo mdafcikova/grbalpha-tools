@@ -199,21 +199,26 @@ class Observation():#MutableSequence):
             snr_t90 = c_raw_event_t90/err_t90
 
             # print results:
-            print(f"statistics in {E_low}-{E_high} keV for a {event_type} at {event_time}:\n"+
-                  f"peak time [utc]: {peak_time}\n"+
-                  f"SNR at peak: {snr_peak}\n"+
-                  f"count rate [cnt/s] above background at peak: {peak_raw_cr}\n"+
-                  f"T90 [s]: {t90}\n"+
-                  f"SNR in T90: {snr_t90}\n"+
-                  f"counts above background in T90: {c_raw_event_t90}\n")
+            output = (f"statistics in {E_low}-{E_high} keV for a {event_type} at {event_time}:\n"+
+                      f"peak time [utc]: {peak_time}\n"+
+                      f"SNR at peak: {snr_peak}\n"+
+                      f"count rate [cnt/s] above background at peak: {peak_raw_cr}\n"+
+                      f"T90 [s]: {t90}\n"+
+                      f"SNR in T90: {snr_t90}\n"+
+                      f"counts above background in T90: {c_raw_event_t90}\n\n")
+            
+            filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\statistics_{event_type}_{event_time.strftime(format='%Y%m%d-%H%M%S')}_{E_low}-{E_high}keV.txt"
+            with open(filepath, "w") as text_file:
+                text_file.write(output)
 
+            print(output)
             return xdata, popt, E_low, E_high
         
         make_fit(ADC_lower_limit=0,ADC_upper_limit=128,f=function)
         xdata, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
         
         ### timeplot
-        fig, ax = plt.subplots(figsize=(10,4),dpi=200)
+        fig, ax = plt.subplots(figsize=(10,5),dpi=200)
         fig.suptitle(f'{event_type}: {event_time}')
         ax.xaxis.set_major_locator(mdates.SecondLocator(bysecond=[0,15,30,45]))
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
@@ -235,6 +240,9 @@ class Observation():#MutableSequence):
         ax.set_xlabel('time [MM:SS]')
         ax.set_ylabel('count rate [counts/s]')
         ax.legend()#loc='lower left')
+        fig.tight_layout()
+        filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\timeplot_{event_type}_{event_time.strftime(format='%Y%m%d-%H%M%S')}.png"
+        fig.savefig(filepath)
         fig.show()
 
         return # file with values
@@ -296,10 +304,12 @@ class Observation():#MutableSequence):
                 ax.scatter(ra,dec,c='b',s=0.5)
 
         fig.suptitle(f'{event_type}: {event_time}')
-        fig.tight_layout()
         ax.set_xlabel('Ra')
         ax.set_ylabel('Dec')
         ax.grid(True)
+        fig.tight_layout()
+        filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\skymap_{event_type}_{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}.png"
+        fig.savefig(filepath)
         fig.show()
 
         return # skymap
