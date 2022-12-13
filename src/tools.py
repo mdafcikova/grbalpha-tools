@@ -4,6 +4,10 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import matplotlib.ticker as ticker
+from astropy.coordinates import ICRS, AltAz, EarthLocation, get_sun
+import astropy.units as u
+from astropy.time import Time
 import scipy.optimize as opt
 
 @dataclass(frozen=True)
@@ -87,16 +91,29 @@ class Observation():#MutableSequence):
         keV_cutoff = 4.08*self.cutoff - 154
         if (keV < keV_cutoff):
             keV = keV_cutoff
-        return round(keV,-1)
+        return int(round(keV,-1))
     
-    def get_event_stat(self, event_time, event_type:str, 
+    def check_event(self, event_time, event_type:str, 
                        dtvalue:float=1.5, tunit:str='min', 
-                       llim:int=1, rlim:int=1, vlines:bool=False, 
+                       llim:int=5, rlim:int=10, vlines:bool=False, 
                        fit_function:str='linear'or'polynom' or function):
+        '''
+        plots +-dtvalue part of the file around the event_time
+        returns: peak time in (each band +) cutoff-370 + cutoff-890
+                 SNR at peak in (each band +) cutoff-370 + cutoff-890
+                 count rate (cnt/s) above bgd at peak in (each band +) cutoff-370 + cutoff-890
+                 T90
+                 SNR in T90 in (each band +) cutoff-370 + cutoff-890
+                 counts (cnt) above bgd during T90 in (each band +) cutoff-370 + cutoff-890
+        add: each band stuff
+             background-sub plot
+             choice of band for fit
+        '''
 
+        event_time = pd.to_datetime(event_time)
         dt = pd.Timedelta(dtvalue,tunit)
-        start = pd.to_datetime(event_time) - dt
-        end = pd.to_datetime(event_time) + dt 
+        start = event_time - dt
+        end = event_time + dt 
         ncols = int(2**8/2**self.bin_mode)
         nrows = int(2*dtvalue*60/self.exp_time)
         cps = np.zeros((ncols,nrows))
@@ -127,8 +144,8 @@ class Observation():#MutableSequence):
         def make_fit(ADC_lower_limit,ADC_upper_limit,f):
             E_low = self.ADC_to_keV(ADC_lower_limit)
             E_high = self.ADC_to_keV(ADC_upper_limit)
+            
             E_n_bins = int(2**8/2**self.bin_mode)
-
             first_band = ADC_lower_limit*E_n_bins/256
             last_band = ADC_upper_limit*E_n_bins/256
 
@@ -194,33 +211,96 @@ class Observation():#MutableSequence):
         
         make_fit(ADC_lower_limit=0,ADC_upper_limit=128,f=function)
         xdata, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
-             
+        
+        ### timeplot
+        fig, ax = plt.subplots(figsize=(10,4),dpi=200)
+        fig.suptitle(f'{event_type}: {event_time}')
+        ax.xaxis.set_major_locator(mdates.SecondLocator(bysecond=[0,15,30,45]))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
+        ax.axvline(event_time,c='r',lw=0.5)
+        ax.axvline(time_list[index_from],c='k',lw=0.5,alpha=0.5)
+        ax.axvline(time_list[index_to],c='k',lw=0.5,alpha=0.5)
+        
+        ax.plot(time_list[:index_from]+time_list[index_to:],function(np.array(xdata),*popt),c='k',lw=0.5)
+        ax.step(time_list,cps.sum(axis=0),c='k',where='mid',lw=0.7,label=f'{E_low} - {E_high} keV')
+        ax.errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='k',lw=0.5,fmt=' ')
+    
+        for band in range(ncols):
+            E_low = self.ADC_to_keV(band*256/ncols)
+            E_high = self.ADC_to_keV((band+1)*256/ncols)
+            ax.step(time_list,cps[band],where='mid',lw=0.75,c='C'+str(band),label=f'{E_low} - {E_high} keV')
+            ax.errorbar(time_list,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C'+str(band),fmt=' ')
+            
+        ax.set_xlim(min(time_list),max(time_list))
+        ax.set_xlabel('time [MM:SS]')
+        ax.set_ylabel('count rate [counts/s]')
+        ax.legend()#loc='lower left')
+        fig.show()
 
         return # file with values
 
-    def plot_trigger(self, event_time, event_type):
-        return # timeplot 
-
     def plot_skymap(self, event_time, event_type, event_ra, event_dec):
+        '''
+        plots skymap with event position, sun position, Earth's shadow         
+        was event in FoV? Y/N
+        was Sun in FoV? Y/N
+        '''
+        time_index = pd.Timestamp(event_time).round('s')
+        lon = self.longitude[time_index]
+        lat = self.latitude[time_index]
+        alt = self.altitude[time_index]
+        location = EarthLocation(lon=lon*u.deg, lat=lat*u.deg, height=alt*u.km)
+        altaz = AltAz(obstime=Time(event_time), location=location, alt=90*u.deg, az=180*u.deg)
+
+        ra_sat = altaz.transform_to(ICRS).ra.deg
+        dec_sat = altaz.transform_to(ICRS).dec.deg
+
+        dec_nadir = -1*lat #-1*dec_sat
+        if (ra_sat < 180):
+            ra_nadir = ra_sat + 180
+        elif (ra_sat > 180):
+            ra_nadir = ra_sat - 180
+
+        ra_sun = get_sun(Time(event_time)).ra.deg
+        dec_sun = get_sun(Time(event_time)).dec.deg
+
+        Erad = np.arcsin(6378/(6378+alt))*180/np.pi
+
+        # skymap
+        fig, ax = plt.subplots(figsize=(10,5),dpi=200)
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(30))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(15))
+        ax.set_xlim(360,0)
+        ax.set_ylim(-90,90)
+
+        # ax.scatter(ra_sat,dec_sat)
+        # ax.scatter(ra_nadir,dec_nadir,c='grey')
+        ax.scatter(event_ra,event_dec,marker='x',c='red')
+        ax.scatter(ra_sun,dec_sun,c='yellow')
+
+        ra_vals = np.linspace(ra_nadir - Erad, ra_nadir + Erad, 50)
+        dec_vals = np.linspace(dec_nadir - Erad, dec_nadir + Erad, 50)
+        vals = np.array(np.meshgrid(ra_vals, dec_vals)).T.reshape(-1,2)
+        for ra, dec in vals:
+            if ((ra - ra_nadir)**2 + (dec - dec_nadir)**2 <= Erad**2):
+                if (ra < 0):
+                    ra = 360 + ra
+                elif (ra > 360):
+                    ra = ra - 360
+                
+                if (dec > 90):
+                    dec = -90 + (dec - 90)
+                elif (dec < -90):
+                    dec = (dec + 90) + 90
+                
+                ax.scatter(ra,dec,c='b',s=0.5)
+
+        fig.suptitle(f'{event_type}: {event_time}')
+        fig.tight_layout()
+        ax.set_xlabel('Ra')
+        ax.set_ylabel('Dec')
+        ax.grid(True)
+        fig.show()
+
         return # skymap
-
-    def check_event(self, event_time, event_type, event_ra=None, event_dec=None):
-        '''
-        plots +-dt part of the file around the event_time
-        plots skymap with event position, sun position, Earth's shadow
-        returns: peak time in each band + cutoff-370 + cutoff-890
-                 SNR at peak in each band + cutoff-370 + cutoff-890
-                 count rate (cnt/s) above bgd at peak in each band + cutoff-370 + cutoff-890
-                 T90
-                 SNR in T90 in each band + cutoff-370 + cutoff-890
-                 counts (cnt) above bgd during T90 in each band + cutoff-370 + cutoff-890
-                 was event in FoV? Y/N
-                 was Sun in FoV? Y/N
-        '''
-
-        return self.get_event_stat(), self.plot_trigger(), self.plot_skymap()
-
-
-
-
 
