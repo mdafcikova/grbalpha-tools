@@ -9,6 +9,7 @@ from astropy.coordinates import ICRS, AltAz, EarthLocation, get_sun
 import astropy.units as u
 from astropy.time import Time
 import scipy.optimize as opt
+import os 
 
 @dataclass(frozen=True)
 class Chunk():
@@ -35,11 +36,11 @@ class Observation():#MutableSequence):
         self.cutoff = df[df['type']=='meta']['cutoff'].reset_index(drop=True)[0]
 
         self.time_utc = pd.to_datetime(mid.utc,format='%Y-%m-%dZ%H:%M:%S.%f')
-        self.time_utc = self.time_utc.set_axis(self.time_utc.round('S'))
-        self.longitude = mid.lon.set_axis(self.time_utc.round('S'))
-        self.latitude = mid.lat.set_axis(self.time_utc.round('S'))
-        self.altitude = mid.alt.set_axis(self.time_utc.round('S'))
-        self.data = df[df['type']=='spectrum'].data.set_axis(self.time_utc.round('S'))
+        self.time_utc = self.time_utc.set_axis(self.time_utc.round('ms'))
+        self.longitude = mid.lon.set_axis(self.time_utc.round('ms'))
+        self.latitude = mid.lat.set_axis(self.time_utc.round('ms'))
+        self.altitude = mid.alt.set_axis(self.time_utc.round('ms'))
+        self.data = df[df['type']=='spectrum'].data.set_axis(self.time_utc.round('ms'))
         self.data = pd.DataFrame.from_records(self.data,index=self.data.index)
 
     def get_chunk(self,time:str):
@@ -94,7 +95,7 @@ class Observation():#MutableSequence):
         return int(round(keV,-1))
     
     def check_event(self, event_time, event_type:str, 
-                       dtvalue:float=1.5, tunit:str='min', 
+                       dtvalue:float=1, tunit:str='min', 
                        llim:int=5, rlim:int=10, vlines:bool=False, 
                        fit_function:str='linear'or'polynom' or function):
         '''
@@ -108,6 +109,7 @@ class Observation():#MutableSequence):
         add: each band stuff
              background-sub plot
              choice of band for fit
+             add statistical errors for cr at peak/counts in t90
         '''
 
         event_time = pd.to_datetime(event_time)
@@ -174,6 +176,7 @@ class Observation():#MutableSequence):
             
             # T90 calculation
             t_event = timestamp[index_from:index_to]
+            utc_event = time_list[index_from:index_to]
             c_event = c[index_from:index_to]
             c_raw_event = c_event - cps_bgd(c[index_from:index_to])
             c_cum = np.cumsum(c_raw_event)
@@ -188,7 +191,7 @@ class Observation():#MutableSequence):
             index_t90_start = np.where(c_cum == find_nearest(c_cum,c_cum_5))[0][0]
             index_t90_end = np.where(c_cum == find_nearest(c_cum,c_cum_95))[0][0]
 
-            t90 = t_event[index_t90_end] - t_event[index_t90_start]
+            t90 = pd.to_datetime(utc_event[index_t90_end]) - pd.to_datetime(utc_event[index_t90_start])
             c_event_t90 = sum(c_event[index_t90_start:index_t90_end+1])
             cntb_t90 = 0
             for t in t_event[index_t90_start:index_t90_end+1]:
@@ -203,12 +206,14 @@ class Observation():#MutableSequence):
                       f"peak time [utc]: {peak_time}\n"+
                       f"SNR at peak: {snr_peak}\n"+
                       f"count rate [cnt/s] above background at peak: {peak_raw_cr}\n"+
-                      f"T90 [s]: {t90}\n"+
+                      f"T90 [s]: {t90.round('S').seconds}\n"+
                       f"SNR in T90: {snr_t90}\n"+
-                      f"counts above background in T90: {c_raw_event_t90}\n\n")
+                      f"counts above background in T90: {c_raw_event_t90}\n")
             
-            filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\statistics_{event_type}_{event_time.strftime(format='%Y%m%d-%H%M%S')}_{E_low}-{E_high}keV.txt"
-            with open(filepath, "w") as text_file:
+            dirpath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+            os.makedirs(dirpath, exist_ok=True)
+            filename = f"statistics_{E_low}-{E_high}keV.txt"
+            with open(dirpath+filename, "w") as text_file:
                 text_file.write(output)
 
             print(output)
@@ -226,22 +231,23 @@ class Observation():#MutableSequence):
         ax.axvline(time_list[index_from],c='k',lw=0.5,alpha=0.5)
         ax.axvline(time_list[index_to],c='k',lw=0.5,alpha=0.5)
         
-        ax.plot(time_list[:index_from]+time_list[index_to:],function(np.array(xdata),*popt),c='k',lw=0.5)
+        ax.plot(time_list,function(np.array(timestamp),*popt),c='k',lw=0.5)
         ax.step(time_list,cps.sum(axis=0),c='k',where='mid',lw=0.7,label=f'{E_low} - {E_high} keV')
         ax.errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='k',lw=0.5,fmt=' ')
     
         for band in range(ncols):
             E_low = self.ADC_to_keV(band*256/ncols)
             E_high = self.ADC_to_keV((band+1)*256/ncols)
-            ax.step(time_list,cps[band],where='mid',lw=0.75,c='C'+str(band),label=f'{E_low} - {E_high} keV')
-            ax.errorbar(time_list,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C'+str(band),fmt=' ')
+            if (E_low != E_high):
+                ax.step(time_list,cps[band],where='mid',lw=0.75,c='C'+str(band),label=f'{E_low} - {E_high} keV')
+                ax.errorbar(time_list,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C'+str(band),fmt=' ')
             
         ax.set_xlim(min(time_list),max(time_list))
         ax.set_xlabel('time [MM:SS]')
         ax.set_ylabel('count rate [counts/s]')
-        ax.legend()#loc='lower left')
+        ax.legend(loc='lower left')
         fig.tight_layout()
-        filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\timeplot_{event_type}_{event_time.strftime(format='%Y%m%d-%H%M%S')}.png"
+        filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\timeplot.png"
         fig.savefig(filepath)
         fig.show()
 
@@ -253,7 +259,8 @@ class Observation():#MutableSequence):
         was event in FoV? Y/N
         was Sun in FoV? Y/N
         '''
-        time_index = pd.Timestamp(event_time).round('s')
+        event_time = pd.Timestamp(event_time).round('ms')
+        time_index = self.longitude.index[self.longitude.index.get_loc(event_time,method='nearest')]
         lon = self.longitude[time_index]
         lat = self.latitude[time_index]
         alt = self.altitude[time_index]
@@ -280,6 +287,7 @@ class Observation():#MutableSequence):
         ax.yaxis.set_major_locator(ticker.MultipleLocator(15))
         ax.set_xlim(360,0)
         ax.set_ylim(-90,90)
+        ax.grid(True)
 
         # ax.scatter(ra_sat,dec_sat)
         # ax.scatter(ra_nadir,dec_nadir,c='grey')
@@ -306,9 +314,8 @@ class Observation():#MutableSequence):
         fig.suptitle(f'{event_type}: {event_time}')
         ax.set_xlabel('Ra')
         ax.set_ylabel('Dec')
-        ax.grid(True)
         fig.tight_layout()
-        filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\skymap_{event_type}_{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}.png"
+        filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\skymap.png"
         fig.savefig(filepath)
         fig.show()
 
