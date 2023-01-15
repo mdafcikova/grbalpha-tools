@@ -128,7 +128,7 @@ class Observation():#MutableSequence):
             t = self.time_utc[i]
             if np.logical_and(t > start,t < end):
                 time_list.append(t)
-                timestamp.append(j)
+                timestamp.append(j*self.exp_time)
                 for n in range(ncols):
                     cps[n][j] = self.data[n][i]
                 j += 1
@@ -175,26 +175,39 @@ class Observation():#MutableSequence):
             snr_peak = peak_raw_cr/err
             
             # T90 calculation
-            t_event = timestamp[index_from:index_to]
+            # t_event = timestamp[index_from:index_to]
             utc_event = time_list[index_from:index_to]
             c_event = c[index_from:index_to]
-            c_raw_event = c_event - cps_bgd(c[index_from:index_to])
+            df_t90 = pd.DataFrame(c_event,index=utc_event,columns=['c_event']).resample('1s',loffset=pd.Timedelta(value=self.exp_time/2,unit='second')).ffill()
+            timestamp_event = pd.DataFrame(np.arange(len(df_t90)),index=df_t90.index,columns=['timestamp'])
+
+            c_raw_event = df_t90.c_event - cps_bgd(timestamp_event.timestamp)
+            # print(c_raw_event)
             c_cum = np.cumsum(c_raw_event)
             c_cum_5 = c_cum[-1] * 0.05
             c_cum_95 = c_cum[-1] * 0.95
             
             def find_nearest(a, a0):
-                # find element in nd array 'a' closest to the scalar value 'a0'
-                idx = np.abs(a - a0).argmin()
-                return a.flat[idx]
+                # find element in pd.Series 'a' closest to the scalar value 'a0' and returns its index
+                nearest = np.abs(a - a0).min()
+                nearest_idx = np.abs(a - a0).idxmin()
+                # print(nearest, nearest_idx)
+                return nearest_idx
 
-            index_t90_start = np.where(c_cum == find_nearest(c_cum,c_cum_5))[0][0]
-            index_t90_end = np.where(c_cum == find_nearest(c_cum,c_cum_95))[0][0]
+            # index_t90_start = pd.Index(c_cum).get_loc(find_nearest(c_cum,c_cum_5))
+            # index_t90_end = pd.Index(c_cum).get_loc(find_nearest(c_cum,c_cum_95))
+            index_t90_start = find_nearest(c_cum,c_cum_5)
+            index_t90_end = find_nearest(c_cum,c_cum_95)
 
-            t90 = pd.to_datetime(utc_event[index_t90_end]) - pd.to_datetime(utc_event[index_t90_start])
-            c_event_t90 = sum(c_event[index_t90_start:index_t90_end+1])
+            # print(f'index_t90_start = {index_t90_start}, index_t90_end = {index_t90_end}')
+            # print(timestamp_event.timestamp[index_t90_start], timestamp_event.timestamp[index_t90_end])
+
+            t90 = index_t90_end - index_t90_start
+            # print('t90 = ',t90)
+            c_event_t90 = df_t90[index_t90_start:index_t90_end+pd.Timedelta('1s')].sum()
             cntb_t90 = 0
-            for t in t_event[index_t90_start:index_t90_end+1]:
+            for t in timestamp_event.timestamp[index_t90_start:index_t90_end+pd.Timedelta('1s')]:
+                # print(t)
                 cntb_t90 += cps_bgd(t)
 
             err_t90 = np.sqrt(c_event_t90)
