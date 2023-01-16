@@ -303,8 +303,9 @@ class Observation():#MutableSequence):
 
         # ax.scatter(ra_sat,dec_sat)
         # ax.scatter(ra_nadir,dec_nadir,c='grey')
-        ax.scatter(event_ra,event_dec,marker='x',c='red')
-        ax.scatter(ra_sun,dec_sun,c='yellow')
+        ax.scatter(event_ra,event_dec,marker='x',c='red',label='event')
+        ax.scatter(ra_sun,dec_sun,c='yellow',label='Sun')
+        ax.legend()
 
         ra_vals = np.linspace(ra_nadir - Erad, ra_nadir + Erad, 50)
         dec_vals = np.linspace(dec_nadir - Erad, dec_nadir + Erad, 50)
