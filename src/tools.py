@@ -97,7 +97,8 @@ class Observation():#MutableSequence):
     def check_event(self, event_time, event_type:str, 
                        dtvalue:float=1, tunit:str='min', 
                        llim:int=5, rlim:int=10, vlines:bool=False, 
-                       fit_function:str='linear'or'polynom' or function):
+                       fit_function:str='linear'or'polynom' or function,
+                       second_locator:list=[0,15,30,45]):
         '''
         plots +-dtvalue part of the file around the event_time
         returns: peak time in (each band +) cutoff-370 + cutoff-890
@@ -237,7 +238,7 @@ class Observation():#MutableSequence):
         ### timeplot
         fig, ax = plt.subplots(figsize=(10,5),dpi=200)
         fig.suptitle(f'{event_type}: {event_time}')
-        ax.xaxis.set_major_locator(mdates.SecondLocator(bysecond=[0,15,30,45]))
+        ax.xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
         ax.axvline(event_time,c='r',lw=0.5)
         ax.axvline(time_list[index_from],c='k',lw=0.5,alpha=0.5)
