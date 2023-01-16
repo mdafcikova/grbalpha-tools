@@ -130,7 +130,7 @@ class Observation():#MutableSequence):
                 time_list.append(t)
                 timestamp.append(j*self.exp_time)
                 for n in range(ncols):
-                    cps[n][j] = self.data[n][i]
+                    cps[n][j] = self.data[n][i]/self.exp_time
                 j += 1
 
         index_from = int(len(time_list)/2-llim)
@@ -172,10 +172,10 @@ class Observation():#MutableSequence):
             crb = cps_bgd(timestamp[index_peak]) # count rate background
             err = np.sqrt(peak_c*self.exp_time)/self.exp_time
             peak_raw_cr = peak_c-crb
+            peak_raw_cr_err = np.sqrt(peak_c*self.exp_time)/self.exp_time
             snr_peak = peak_raw_cr/err
             
             # T90 calculation
-            # t_event = timestamp[index_from:index_to]
             utc_event = time_list[index_from:index_to]
             c_event = c[index_from:index_to]
             df_t90 = pd.DataFrame(c_event,index=utc_event,columns=['c_event']).resample('1s',loffset=pd.Timedelta(value=self.exp_time/2,unit='second')).ffill()
@@ -203,25 +203,24 @@ class Observation():#MutableSequence):
             # print(timestamp_event.timestamp[index_t90_start], timestamp_event.timestamp[index_t90_end])
 
             t90 = index_t90_end - index_t90_start
-            # print('t90 = ',t90)
-            c_event_t90 = df_t90[index_t90_start:index_t90_end+pd.Timedelta('1s')].sum()
+            c_event_t90 = df_t90.c_event[index_t90_start:index_t90_end+pd.Timedelta('1s')].sum()
             cntb_t90 = 0
             for t in timestamp_event.timestamp[index_t90_start:index_t90_end+pd.Timedelta('1s')]:
-                # print(t)
                 cntb_t90 += cps_bgd(t)
 
             err_t90 = np.sqrt(c_event_t90)
             c_raw_event_t90 = c_event_t90-cntb_t90
+            c_raw_event_t90_err = np.sqrt(c_event_t90*self.exp_time)/self.exp_time
             snr_t90 = c_raw_event_t90/err_t90
 
             # print results:
             output = (f"statistics in {E_low}-{E_high} keV for a {event_type} at {event_time}:\n"+
                       f"peak time [utc]: {peak_time}\n"+
-                      f"SNR at peak: {snr_peak}\n"+
-                      f"count rate [cnt/s] above background at peak: {peak_raw_cr}\n"+
+                      f"SNR at peak: {round(snr_peak,3)}\n"+
+                      f"count rate [cnt/s] above background at peak: {round(peak_raw_cr,3)} +- {round(peak_raw_cr_err,3)}\n"+
                       f"T90 [s]: {t90.round('S').seconds}\n"+
-                      f"SNR in T90: {snr_t90}\n"+
-                      f"counts above background in T90: {c_raw_event_t90}\n")
+                      f"SNR in T90: {round(snr_t90,3)}\n"+
+                      f"counts above background in T90: {round(c_raw_event_t90,3)} +- {round(c_raw_event_t90_err,3)}\n")
             
             dirpath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
             os.makedirs(dirpath, exist_ok=True)
