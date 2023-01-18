@@ -76,8 +76,8 @@ class Observation():#MutableSequence):
         else:
             return [x for x in zip(trig_date,trig_mission)]
 
-    def is_SF_in_file(self):
-        trig = pd.read_csv(r'C:\Users\maria\Desktop\CubeSats\KW_sf_list.csv',usecols=['DateTime','Class'])
+    def is_SF_in_file(self,path=r'C:\Users\maria\Desktop\CubeSats\KW_sf_list.csv'):
+        trig = pd.read_csv(path,usecols=['DateTime','Class'])
         trig_date = pd.to_datetime(trig.DateTime)
         cond_trig_in_data = np.logical_and(trig_date > self.time_utc[0], trig_date < self.time_utc[len(self.time_utc)-1])
         sf_class = trig.Class[cond_trig_in_data].reset_index(drop=True)
