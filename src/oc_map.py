@@ -89,12 +89,12 @@ def make_oc_map(lon,lat,alt,utc,ra_grb,dec_grb,projection=False):
     fig.show()
 
 #%% variables 
-lon = 306.991 
-lat = 32.0041
-alt = 548.897
-utc = '2022-12-10 02:35:38'
-ra_grb =  268.700
-dec_grb =  -16.060
+lon = 157.545
+lat = -15.1291
+alt =  556.762
+utc = '2023-01-02 00:22:12'
+ra_grb = 272.8
+dec_grb = -35.1
 
 make_oc_map(lon,lat,alt,utc,ra_grb,dec_grb,projection=False)
 

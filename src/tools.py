@@ -5,7 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
-from astropy.coordinates import ICRS, AltAz, EarthLocation, get_sun
+from astropy.coordinates import ICRS, AltAz, EarthLocation, SkyCoord, get_sun
+from astropy.visualization.wcsaxes import SphericalCircle
 import astropy.units as u
 from astropy.time import Time
 import scipy.optimize as opt
@@ -292,7 +293,15 @@ class Observation():#MutableSequence):
         ra_sun = get_sun(Time(event_time)).ra.deg
         dec_sun = get_sun(Time(event_time)).dec.deg
 
+        # Earth's angular radius from the satellite
         Erad = np.arcsin(6378/(6378+alt))*180/np.pi
+        # Earth's shaddow
+        Earth_coord = SphericalCircle(center=SkyCoord(ra=ra_nadir*u.deg,dec=dec_nadir*u.deg),
+                                    radius=u.Quantity(value=Erad,unit=u.deg),
+                                    resolution=500).get_xy()
+        Earth_ra = Earth_coord.T[0]
+        Earth_dec = Earth_coord.T[1]
+
 
         # skymap
         fig, ax = plt.subplots(figsize=(10,5),dpi=200)
@@ -303,27 +312,12 @@ class Observation():#MutableSequence):
         ax.grid(True)
 
         # ax.scatter(ra_sat,dec_sat)
-        # ax.scatter(ra_nadir,dec_nadir,c='grey')
-        ax.scatter(event_ra,event_dec,marker='x',c='red',label='event')
-        ax.scatter(ra_sun,dec_sun,c='yellow',label='Sun')
-        ax.legend()
+        ax.scatter(ra_nadir,dec_nadir,c='b',label='Earth')
+        ax.scatter(Earth_ra,Earth_dec,c='b',s=3)
 
-        ra_vals = np.linspace(ra_nadir - Erad, ra_nadir + Erad, 50)
-        dec_vals = np.linspace(dec_nadir - Erad, dec_nadir + Erad, 50)
-        vals = np.array(np.meshgrid(ra_vals, dec_vals)).T.reshape(-1,2)
-        for ra, dec in vals:
-            if ((ra - ra_nadir)**2 + (dec - dec_nadir)**2 <= Erad**2):
-                if (ra < 0):
-                    ra = 360 + ra
-                elif (ra > 360):
-                    ra = ra - 360
-                
-                if (dec > 90):
-                    dec = -90 + (dec - 90)
-                elif (dec < -90):
-                    dec = (dec + 90) + 90
-                
-                ax.scatter(ra,dec,c='b',s=0.5)
+        ax.scatter(event_ra,event_dec,marker='x',c='red',label='event')
+        ax.scatter(ra_sun,dec_sun,marker='*',c='yellow',label='Sun')
+        ax.legend()
 
         fig.suptitle(f'{event_type}: {event_time}')
         ax.set_xlabel('Ra')
