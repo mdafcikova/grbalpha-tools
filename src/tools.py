@@ -96,8 +96,8 @@ class Observation():#MutableSequence):
         return int(round(keV,-1))
     
     def check_event(self, event_time, event_type:str, 
-                       dtvalue:float=1, tunit:str='min', 
-                       llim:int=5, rlim:int=10, vlines:bool=False, 
+                       dtvalue_left:float=1, dtvalue_right:float=1, tunit:str='min', 
+                       llim:int=5, rlim:int=10, plot_fit:bool=True, 
                        fit_function:str='linear'or'polynom' or function,
                        second_locator:list=[0,15,30,45]):
         '''
@@ -115,11 +115,12 @@ class Observation():#MutableSequence):
         '''
 
         event_time = pd.to_datetime(event_time)
-        dt = pd.Timedelta(dtvalue,tunit)
-        start = event_time - dt
-        end = event_time + dt 
+        dt_left = pd.Timedelta(dtvalue_left,tunit)
+        dt_right = pd.Timedelta(dtvalue_right,tunit)
+        start = event_time - dt_left
+        end = event_time + dt_right 
         ncols = int(2**8/2**self.bin_mode)
-        nrows = int(2*dtvalue*60/self.exp_time)
+        nrows = int((dtvalue_left+dtvalue_right)*60/self.exp_time)
         cps = np.zeros((ncols,nrows))
 
         time_list = []
@@ -134,9 +135,9 @@ class Observation():#MutableSequence):
                 for n in range(ncols):
                     cps[n][j] = self.data[n][i]/self.exp_time
                 j += 1
-
-        index_from = int(len(time_list)/2-llim)
-        index_to = int(len(time_list)/2+rlim)
+        
+        index_from = int(llim)
+        index_to = int(rlim)
 
         if (fit_function == 'linear'):
             def function(x,a1,a0):
@@ -181,7 +182,7 @@ class Observation():#MutableSequence):
             utc_event = time_list[index_from:index_to]
             c_event = c[index_from:index_to]
             df_t90 = pd.DataFrame(c_event,index=utc_event,columns=['c_event']).resample('1s',loffset=pd.Timedelta(value=self.exp_time/2,unit='second')).ffill()
-            timestamp_event = pd.DataFrame(np.arange(len(df_t90)),index=df_t90.index,columns=['timestamp'])
+            timestamp_event = pd.DataFrame(np.linspace(timestamp[index_from],timestamp[index_to],len(df_t90)),index=df_t90.index,columns=['timestamp'])
 
             c_raw_event = df_t90.c_event - cps_bgd(timestamp_event.timestamp)
             # print(c_raw_event)
@@ -242,10 +243,12 @@ class Observation():#MutableSequence):
         ax.xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
         ax.axvline(event_time,c='r',lw=0.5)
-        ax.axvline(time_list[index_from],c='k',lw=0.5,alpha=0.5)
-        ax.axvline(time_list[index_to],c='k',lw=0.5,alpha=0.5)
         
-        ax.plot(time_list,function(np.array(timestamp),*popt),c='k',lw=0.5)
+        if (plot_fit == True):
+            ax.axvline(time_list[index_from],c='k',lw=0.5,alpha=0.5)
+            ax.axvline(time_list[index_to],c='k',lw=0.5,alpha=0.5)
+            
+            ax.plot(time_list,function(np.array(timestamp),*popt),c='k',lw=0.5)
         ax.step(time_list,cps.sum(axis=0),c='k',where='mid',lw=0.7,label=f'{E_low} - {E_high} keV')
         ax.errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='k',lw=0.5,fmt=' ')
     
