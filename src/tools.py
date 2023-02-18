@@ -28,21 +28,42 @@ class Observation():#MutableSequence):
     time_format: str = '%Y-%m-%dZ%H:%M:%S.%f'
     
     def __init__(self,filepath:str):
-        df = pd.read_json(filepath,lines=True)
-        mid = df[df['type']=='spectrum'].mid.reset_index(drop=True)
-        mid = pd.DataFrame.from_records(mid.to_list())
-    
-        self.exp_time = df[df['type']=='meta']['exptime'].reset_index(drop=True)[0]
-        self.bin_mode = df[df['type']=='spectrum']['bin_mode'].reset_index(drop=True)[0]
-        self.cutoff = df[df['type']=='meta']['cutoff'].reset_index(drop=True)[0]
+        if (filepath[-4:] == 'json'):
+            df = pd.read_json(filepath,lines=True)
+            mid = df[df['type']=='spectrum'].mid.reset_index(drop=True)
+            mid = pd.DataFrame.from_records(mid.to_list())
+        
+            self.exp_time = df[df['type']=='meta']['exptime'].reset_index(drop=True)[0]
+            self.bin_mode = df[df['type']=='spectrum']['bin_mode'].reset_index(drop=True)[0]
+            self.cutoff = df[df['type']=='meta']['cutoff'].reset_index(drop=True)[0]
 
-        self.time_utc = pd.to_datetime(mid.utc,format='%Y-%m-%dZ%H:%M:%S.%f')
-        self.time_utc = self.time_utc.set_axis(self.time_utc.round('ms'))
-        self.longitude = mid.lon.set_axis(self.time_utc.round('ms'))
-        self.latitude = mid.lat.set_axis(self.time_utc.round('ms'))
-        self.altitude = mid.alt.set_axis(self.time_utc.round('ms'))
-        self.data = df[df['type']=='spectrum'].data.set_axis(self.time_utc.round('ms'))
-        self.data = pd.DataFrame.from_records(self.data,index=self.data.index)
+            self.time_utc = pd.to_datetime(mid.utc,format='%Y-%m-%dZ%H:%M:%S.%f')
+            self.time_utc = self.time_utc.set_axis(self.time_utc.round('ms'))
+            self.longitude = mid.lon.set_axis(self.time_utc.round('ms'))
+            self.latitude = mid.lat.set_axis(self.time_utc.round('ms'))
+            self.altitude = mid.alt.set_axis(self.time_utc.round('ms'))
+
+            self.data = df[df['type']=='spectrum'].data.set_axis(self.time_utc.round('ms'))
+            self.data = pd.DataFrame.from_records(self.data,index=self.data.index)
+            
+        elif (filepath[-3:] == 'txt'):
+            df = pd.read_csv(filepath,skiprows=8,sep='\s+\s+')
+
+            self.exp_time = pd.read_csv(filepath,skiprows=8,sep='\s+\s+',usecols=['exposure(s)'])['exposure(s)'][0]
+            nbins = pd.read_csv(filepath,skiprows=8,sep='\s+\s+',usecols=['spec_nbins']).spec_nbins[0]
+            self.bin_mode = np.log(2**8/nbins)/np.log(2)
+            self.cutoff = pd.read_csv(filepath,skiprows=6,nrows=1,header=None,sep='\s+',usecols=[1])[1][0]
+            
+            self.time_utc = pd.to_datetime(df.exp_end_time)- pd.Timedelta(self.exp_time/2,unit='s')
+            self.time_utc = self.time_utc.set_axis(self.time_utc.round('ms'))
+            self.longitude = round((df.lon_end+df.lon_start)/2,3).set_axis(self.time_utc.round('ms'))
+            self.latitude = round((df.lat_end+df.lat_start)/2,3).set_axis(self.time_utc.round('ms'))
+            self.altitude = round((df.alt_end+df.alt_start)/2,3).set_axis(self.time_utc.round('ms'))
+            
+            keys = [col for col in df.columns if col.startswith('cnt_band')]
+            vals = np.arange(len(keys))
+            names = {keys[i]:vals[i] for i in range(len(keys))}
+            self.data = df[keys].rename(columns=names).set_axis(self.time_utc.round('ms'))
 
     def get_chunk(self,time:str):
         return Chunk(exp_time=self.exp_time,
@@ -129,7 +150,7 @@ class Observation():#MutableSequence):
         j = 0
         for i in self.data.index:
             t = self.time_utc[i]
-            if np.logical_and(t > start,t < end):
+            if np.logical_and(t > start,t < end).any():
                 time_list.append(t)
                 timestamp.append(j*self.exp_time)
                 for n in range(ncols):
