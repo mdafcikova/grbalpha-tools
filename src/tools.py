@@ -266,7 +266,7 @@ class Observation():#MutableSequence):
         ax.axvline(event_time,c='r',lw=0.5)
         
         if (plot_fit == True):
-            ax.axvline(time_list[index_from],c='k',lw=0.5,alpha=0.5)
+            ax.axvline(time_list[index_from-1],c='k',lw=0.5,alpha=0.5)
             ax.axvline(time_list[index_to],c='k',lw=0.5,alpha=0.5)
             
             ax.plot(time_list,function(np.array(timestamp),*popt),c='k',lw=0.5)
