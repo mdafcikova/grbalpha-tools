@@ -120,7 +120,8 @@ class Observation():#MutableSequence):
                        dtvalue_left:float=1, dtvalue_right:float=1, tunit:str='min', 
                        llim:int=5, rlim:int=10, plot_fit:bool=True, 
                        fit_function:str='linear'or'polynom',
-                       second_locator:list=[0,15,30,45]):
+                       second_locator:list=[0,15,30,45],
+                       save_path="C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\"):
         '''
         plots +-dtvalue part of the file around the event_time
         returns: peak time in (each band +) cutoff-370 + cutoff-890
@@ -241,7 +242,7 @@ class Observation():#MutableSequence):
                       f"SNR in T90: {round(snr_t90,3)}\n"+
                       f"counts above background in T90: {round(c_raw_event_t90,3)} +- {round(c_raw_event_t90_err,3)}\n")
             
-            dirpath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+            dirpath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
             os.makedirs(dirpath, exist_ok=True)
             filename = f"statistics_{E_low}-{E_high}keV.txt"
             with open(dirpath+filename, "w") as text_file:
@@ -280,13 +281,14 @@ class Observation():#MutableSequence):
         ax.set_ylabel('count rate [counts/s]')
         ax.legend(loc='lower left')
         fig.tight_layout()
-        filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\timeplot.png"
+        filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\timeplot.png"
         fig.savefig(filepath)
         fig.show()
 
         return # file with values
 
-    def plot_skymap(self, event_time, event_type, event_ra, event_dec):
+    def plot_skymap(self, event_time, event_type, event_ra, event_dec,
+                    save_path="C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\"):
         '''
         plots skymap with event position, sun position, Earth's shadow         
         was event in FoV? Y/N
@@ -342,7 +344,7 @@ class Observation():#MutableSequence):
         ax.set_xlabel('Ra')
         ax.set_ylabel('Dec')
         fig.tight_layout()
-        filepath = f"C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\skymap.png"
+        filepath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\skymap.png"
         fig.savefig(filepath)
         fig.show()
 
