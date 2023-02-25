@@ -119,7 +119,7 @@ class Observation():#MutableSequence):
     def check_event(self, event_time, event_type:str, 
                        dtvalue_left:float=1, dtvalue_right:float=1, tunit:str='min', 
                        llim:int=5, rlim:int=10, plot_fit:bool=True, 
-                       fit_function:str='linear'or'polynom' or function,
+                       fit_function:str='linear'or'polynom',
                        second_locator:list=[0,15,30,45]):
         '''
         plots +-dtvalue part of the file around the event_time
@@ -140,8 +140,8 @@ class Observation():#MutableSequence):
         dt_right = pd.Timedelta(dtvalue_right,tunit)
         start = event_time - dt_left
         end = event_time + dt_right 
-        ncols = int(2**8/2**self.bin_mode)
-        nrows = int((dtvalue_left+dtvalue_right)*60/self.exp_time)
+        ncols = int(2**8/2**self.bin_mode) # number of energy bands
+        nrows = int((dtvalue_left+dtvalue_right)*60/self.exp_time) # number of data bins
         cps = np.zeros((ncols,nrows))
 
         time_list = []
@@ -152,7 +152,7 @@ class Observation():#MutableSequence):
             t = self.time_utc[i]
             if np.logical_and(t > start,t < end).any():
                 time_list.append(t)
-                timestamp.append(j*self.exp_time)
+                timestamp.append((j+1)*self.exp_time)
                 for n in range(ncols):
                     cps[n][j] = self.data[n][i]/self.exp_time
                 j += 1
@@ -189,52 +189,47 @@ class Observation():#MutableSequence):
                 return f(x,*popt)
 
             # stat at peak
-            index_peak = np.where(c == np.max(c[index_from:index_to]))[0][0]
-            peak_c = np.max(c[index_from:index_to])
+            raw_cr = [c1 - cps_bgd(c2) for c1,c2 in zip(c[index_from:index_to],timestamp[index_from:index_to])]
+            peak_raw_cr = np.max(raw_cr)
+            index_peak = np.where(raw_cr == peak_raw_cr)[0][0]
 
             peak_time = time_list[index_peak]
-            crb = cps_bgd(timestamp[index_peak]) # count rate background
+        
+            peak_c = c[index_from:index_to][index_peak]
             err = np.sqrt(peak_c*self.exp_time)/self.exp_time
-            peak_raw_cr = peak_c-crb
-            peak_raw_cr_err = np.sqrt(peak_c*self.exp_time)/self.exp_time
             snr_peak = peak_raw_cr/err
+            peak_raw_cr_err = np.sqrt(peak_c*self.exp_time)/self.exp_time
+            
             
             # T90 calculation
-            utc_event = time_list[index_from:index_to]
+            timestamp_event = timestamp[index_from:index_to]
             c_event = c[index_from:index_to]
-            df_t90 = pd.DataFrame(c_event,index=utc_event,columns=['c_event']).resample('1s',loffset=pd.Timedelta(value=self.exp_time/2,unit='second')).ffill()
-            timestamp_event = pd.DataFrame(np.linspace(timestamp[index_from],timestamp[index_to],len(df_t90)),index=df_t90.index,columns=['timestamp'])
+            df_t90 = pd.DataFrame(c_event,index=pd.TimedeltaIndex(timestamp_event,unit='s'),columns=['c_event']).resample('1s',loffset=pd.Timedelta(value=self.exp_time/2,unit='second')).ffill()
 
-            c_raw_event = df_t90.c_event - cps_bgd(timestamp_event.timestamp)
-            # print(c_raw_event)
+            c_raw_event = [c1 - cps_bgd(c2) for c1,c2 in zip(df_t90.c_event,pd.Series(df_t90.index).dt.seconds)]
             c_cum = np.cumsum(c_raw_event)
             c_cum_5 = c_cum[-1] * 0.05
             c_cum_95 = c_cum[-1] * 0.95
             
             def find_nearest(a, a0):
-                # find element in pd.Series 'a' closest to the scalar value 'a0' and returns its index
+                # find element in pd.Series (idxmin) or np.array (argmin) 'a' closest to the scalar value 'a0' and returns its index
                 nearest = np.abs(a - a0).min()
-                nearest_idx = np.abs(a - a0).idxmin()
+                nearest_idx = np.abs(a - a0).argmin()
                 # print(nearest, nearest_idx)
                 return nearest_idx
 
-            # index_t90_start = pd.Index(c_cum).get_loc(find_nearest(c_cum,c_cum_5))
-            # index_t90_end = pd.Index(c_cum).get_loc(find_nearest(c_cum,c_cum_95))
             index_t90_start = find_nearest(c_cum,c_cum_5)
             index_t90_end = find_nearest(c_cum,c_cum_95)
 
-            # print(f'index_t90_start = {index_t90_start}, index_t90_end = {index_t90_end}')
-            # print(timestamp_event.timestamp[index_t90_start], timestamp_event.timestamp[index_t90_end])
-
             t90 = index_t90_end - index_t90_start
-            c_event_t90 = df_t90.c_event[index_t90_start:index_t90_end+pd.Timedelta('1s')].sum()
+            c_event_t90 = df_t90.c_event[index_t90_start:index_t90_end+1].sum()
             cntb_t90 = 0
-            for t in timestamp_event.timestamp[index_t90_start:index_t90_end+pd.Timedelta('1s')]:
+            for t in pd.Series(df_t90.c_event[index_t90_start:index_t90_end+1].index).dt.seconds:
                 cntb_t90 += cps_bgd(t)
 
             err_t90 = np.sqrt(c_event_t90)
             c_raw_event_t90 = c_event_t90-cntb_t90
-            c_raw_event_t90_err = np.sqrt(c_event_t90*self.exp_time)/self.exp_time
+            c_raw_event_t90_err = np.sqrt(c_event_t90)
             snr_t90 = c_raw_event_t90/err_t90
 
             # print results:
@@ -242,7 +237,7 @@ class Observation():#MutableSequence):
                       f"peak time [utc]: {peak_time}\n"+
                       f"SNR at peak: {round(snr_peak,3)}\n"+
                       f"count rate [cnt/s] above background at peak: {round(peak_raw_cr,3)} +- {round(peak_raw_cr_err,3)}\n"+
-                      f"T90 [s]: {t90.round('S').seconds}\n"+
+                      f"T90 [s]: {t90}\n"+
                       f"SNR in T90: {round(snr_t90,3)}\n"+
                       f"counts above background in T90: {round(c_raw_event_t90,3)} +- {round(c_raw_event_t90_err,3)}\n")
             
@@ -266,8 +261,8 @@ class Observation():#MutableSequence):
         ax.axvline(event_time,c='r',lw=0.5)
         
         if (plot_fit == True):
-            ax.axvline(time_list[index_from-1],c='k',lw=0.5,alpha=0.5)
-            ax.axvline(time_list[index_to],c='k',lw=0.5,alpha=0.5)
+            ax.axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
+            ax.axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
             
             ax.plot(time_list,function(np.array(timestamp),*popt),c='k',lw=0.5)
         ax.step(time_list,cps.sum(axis=0),c='k',where='mid',lw=0.7,label=f'{E_low} - {E_high} keV')
