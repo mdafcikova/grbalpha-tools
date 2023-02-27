@@ -203,8 +203,8 @@ class Observation():#MutableSequence):
             
             
             # T90 calculation
-            timestamp_event = timestamp[index_from:index_to]
-            c_event = c[index_from:index_to]
+            timestamp_event = timestamp[index_from:index_to+1]
+            c_event = c[index_from:index_to+1]
             df_t90 = pd.DataFrame(c_event,index=pd.TimedeltaIndex(timestamp_event,unit='s'),columns=['c_event']).resample('1s',loffset=pd.Timedelta(value=self.exp_time/2,unit='second')).ffill()
 
             c_raw_event = [c1 - cps_bgd(c2) for c1,c2 in zip(df_t90.c_event,pd.Series(df_t90.index).dt.seconds)]
@@ -242,11 +242,12 @@ class Observation():#MutableSequence):
                       f"SNR in T90: {round(snr_t90,3)}\n"+
                       f"counts above background in T90: {round(c_raw_event_t90,3)} +- {round(c_raw_event_t90_err,3)}\n")
             
-            dirpath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
-            os.makedirs(dirpath, exist_ok=True)
-            filename = f"statistics_{E_low}-{E_high}keV.txt"
-            with open(dirpath+filename, "w") as text_file:
-                text_file.write(output)
+            if (save_path != None):
+                dirpath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+                os.makedirs(dirpath, exist_ok=True)
+                filename = f"statistics_{E_low}-{E_high}keV.txt"
+                with open(dirpath+filename, "w") as text_file:
+                    text_file.write(output)
 
             print(output)
             return xdata, popt, E_low, E_high
@@ -255,34 +256,45 @@ class Observation():#MutableSequence):
         xdata, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
         
         ### timeplot
-        fig, ax = plt.subplots(figsize=(10,5),dpi=200)
+        fig, ax = plt.subplots(nrows=ncols+1,figsize=(9,13),dpi=200,sharex=True)
         fig.suptitle(f'{event_type}: {event_time}')
-        ax.xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
-        ax.axvline(event_time,c='r',lw=0.5)
+        ax[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
+        ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
+        ax[-1].axvline(event_time,c='k',ls='--',lw=0.7)
         
-        if (plot_fit == True):
-            ax.axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
-            ax.axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
-            
-            ax.plot(time_list,function(np.array(timestamp),*popt),c='k',lw=0.5)
-        ax.step(time_list,cps.sum(axis=0),c='k',where='mid',lw=0.7,label=f'{E_low} - {E_high} keV')
-        ax.errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='k',lw=0.5,fmt=' ')
-    
-        for band in range(ncols):
+        ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{E_low} - {E_high} keV')
+        ax[-1].errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
+        ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
+        ax[-1].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
+        ax[-1].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
+                    
+        ax[-1].legend(loc='lower left')
+
+        i = 0
+        for band in reversed(range(ncols)):
             E_low = self.ADC_to_keV(band*256/ncols)
             E_high = self.ADC_to_keV((band+1)*256/ncols)
             if (E_low != E_high):
-                ax.step(time_list,cps[band],where='mid',lw=0.75,c='C'+str(band),label=f'{E_low} - {E_high} keV')
-                ax.errorbar(time_list,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C'+str(band),fmt=' ')
-            
-        ax.set_xlim(min(time_list),max(time_list))
-        ax.set_xlabel('time [MM:SS]')
-        ax.set_ylabel('count rate [counts/s]')
-        ax.legend(loc='lower left')
+                # ax[i].xaxis.set_major_locator(ticker.NullLocator())
+                ax[i].axvline(event_time,c='k',ls='--',lw=0.7)
+                ax[i].step(time_list,cps[band],where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
+                ax[i].errorbar(time_list,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C0',fmt=' ')
+                ax[i].legend(loc='lower left')
+                if (plot_fit == True):
+                    ax[i].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
+                    ax[i].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
+                    
+                i += 1
+
+        ax[-1].set_xlim(min(time_list),max(time_list))
+        ax[-1].set_xlabel('time [MM:SS]')
+        # ax.set_ylabel('count rate [counts/s]')
+        fig.supylabel('count rate [counts/s]')
         fig.tight_layout()
-        filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\timeplot.png"
-        fig.savefig(filepath)
+        fig.subplots_adjust(hspace=0)
+        if (save_path != None):
+            filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\timeplot.png"
+            fig.savefig(filepath)
         fig.show()
 
         return # file with values
@@ -344,8 +356,9 @@ class Observation():#MutableSequence):
         ax.set_xlabel('Ra')
         ax.set_ylabel('Dec')
         fig.tight_layout()
-        filepath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\skymap.png"
-        fig.savefig(filepath)
+        if (save_path != None):
+            filepath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\skymap.png"
+            fig.savefig(filepath)
         fig.show()
 
         return # skymap
