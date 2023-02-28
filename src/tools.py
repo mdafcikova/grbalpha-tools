@@ -264,16 +264,19 @@ class Observation():#MutableSequence):
         
         ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{E_low} - {E_high} keV')
         ax[-1].errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
-        ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
-        ax[-1].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
-        ax[-1].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
+        if (plot_fit == True):
+            ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
+            ax[-1].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
+            ax[-1].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
                     
         ax[-1].legend(loc='lower left')
 
         i = 0
         for band in reversed(range(ncols)):
-            E_low = self.ADC_to_keV(band*256/ncols)
-            E_high = self.ADC_to_keV((band+1)*256/ncols)
+            ADC_low = band*256/ncols
+            E_low = self.ADC_to_keV(ADC_low)
+            ADC_high = (band+1)*256/ncols
+            E_high = self.ADC_to_keV(ADC_high)
             if (E_low != E_high):
                 # ax[i].xaxis.set_major_locator(ticker.NullLocator())
                 ax[i].axvline(event_time,c='k',ls='--',lw=0.7)
@@ -281,6 +284,8 @@ class Observation():#MutableSequence):
                 ax[i].errorbar(time_list,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C0',fmt=' ')
                 ax[i].legend(loc='lower left')
                 if (plot_fit == True):
+                    xdata, popt, E_low, E_high = make_fit(ADC_lower_limit=ADC_low,ADC_upper_limit=ADC_high,f=function)
+                    ax[i].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
                     ax[i].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
                     ax[i].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
                     
