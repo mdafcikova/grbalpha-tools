@@ -250,26 +250,45 @@ class Observation():#MutableSequence):
                     text_file.write(output)
 
             print(output)
-            return xdata, popt, E_low, E_high
+
+            cps_bg = [cps_bgd(t) for t in timestamp]
+            return cps_bg, popt, E_low, E_high
         
+        # statistics for <370 keV
         make_fit(ADC_lower_limit=0,ADC_upper_limit=128,f=function)
-        xdata, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
+        # statistics for the entire range
+        cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
         
         ### timeplot
         fig, ax = plt.subplots(nrows=ncols+1,figsize=(9,13),dpi=200,sharex=True)
-        fig.suptitle(f'{event_type}: {event_time}')
+        fig.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
         ax[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
         ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
         ax[-1].axvline(event_time,c='k',ls='--',lw=0.7)
-        
+
+        ax[-1].legend(loc='lower left')
+
         ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{E_low} - {E_high} keV')
         ax[-1].errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
         if (plot_fit == True):
             ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
             ax[-1].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
             ax[-1].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
-                    
-        ax[-1].legend(loc='lower left')
+            
+            ### bg_sub timeplot
+            fig_sub, ax_sub = plt.subplots(nrows=ncols+1,figsize=(9,13),dpi=200,sharex=True)
+            fig_sub.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+            ax_sub[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
+            ax_sub[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
+            ax_sub[-1].axvline(event_time,c='k',ls='--',lw=0.7)
+            ax_sub[-1].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
+            
+            ax_sub[-1].step(time_list,cps.sum(axis=0)-cps_bg,c='C0',where='mid',lw=0.75,label=f'{E_low} - {E_high} keV')
+            ax_sub[-1].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
+            ax_sub[-1].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
+                        
+            ax_sub[-1].legend(loc='lower left')
+
 
         i = 0
         for band in reversed(range(ncols)):
@@ -284,11 +303,19 @@ class Observation():#MutableSequence):
                 ax[i].errorbar(time_list,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C0',fmt=' ')
                 ax[i].legend(loc='lower left')
                 if (plot_fit == True):
-                    xdata, popt, E_low, E_high = make_fit(ADC_lower_limit=ADC_low,ADC_upper_limit=ADC_high,f=function)
+                    cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=ADC_low,ADC_upper_limit=ADC_high,f=function)
                     ax[i].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
                     ax[i].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
                     ax[i].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
-                    
+
+                    ### bg_sub plot
+                    ax_sub[i].axvline(event_time,c='k',ls='--',lw=0.7)
+                    ax_sub[i].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
+                    ax_sub[i].step(time_list,cps[band]-cps_bg,where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
+                    ax_sub[i].legend(loc='lower left')
+                    ax_sub[i].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
+                    ax_sub[i].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
+                
                 i += 1
 
         ax[-1].set_xlim(min(time_list),max(time_list))
@@ -297,11 +324,24 @@ class Observation():#MutableSequence):
         fig.supylabel('count rate [counts/s]')
         fig.tight_layout()
         fig.subplots_adjust(hspace=0)
+        fig.show()
+
+        if (plot_fit == True):
+            ax_sub[-1].set_xlim(min(time_list),max(time_list))
+            ax_sub[-1].set_xlabel('time [MM:SS]')
+            # ax.set_ylabel('count rate [counts/s]')
+            fig_sub.supylabel('count rate [counts/s]')
+            fig_sub.tight_layout()
+            fig_sub.subplots_adjust(hspace=0)
+            fig_sub.show()
+
+
         if (save_path != None):
             filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\timeplot.png"
             fig.savefig(filepath)
-        fig.show()
-
+            filepath_sub = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\bg_sub_timeplot.png"
+            fig_sub.savefig(filepath_sub)
+            
         return # file with values
 
     def plot_skymap(self, event_time, event_type, event_ra, event_dec,
