@@ -12,6 +12,69 @@ from astropy.time import Time
 import scipy.optimize as opt
 import os 
 
+def plot_skymap(event_time, event_type, event_ra, event_dec,
+                lon,lat,alt=550,
+                save_path="C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\"
+                ):
+    '''
+    plots skymap with event position, sun position, Earth's shadow         
+    was event in FoV? Y/N
+    was Sun in FoV? Y/N
+    '''
+    event_time = pd.Timestamp(event_time).round('ms')
+    location = EarthLocation(lon=lon*u.deg, lat=lat*u.deg, height=alt*u.km)
+    altaz = AltAz(obstime=Time(event_time), location=location, alt=90*u.deg, az=180*u.deg)
+
+    ra_sat = altaz.transform_to(ICRS).ra.deg
+    dec_sat = altaz.transform_to(ICRS).dec.deg
+
+    dec_nadir = -1*lat #-1*dec_sat
+    if (ra_sat < 180):
+        ra_nadir = ra_sat + 180
+    elif (ra_sat > 180):
+        ra_nadir = ra_sat - 180
+
+    ra_sun = get_sun(Time(event_time)).ra.deg
+    dec_sun = get_sun(Time(event_time)).dec.deg
+
+    # Earth's angular radius from the satellite
+    Erad = np.arcsin(6378/(6378+alt))*180/np.pi
+    # Earth's shaddow
+    Earth_coord = SphericalCircle(center=SkyCoord(ra=ra_nadir*u.deg,dec=dec_nadir*u.deg),
+                                radius=u.Quantity(value=Erad,unit=u.deg),
+                                resolution=500).get_xy()
+    Earth_ra = Earth_coord.T[0]
+    Earth_dec = Earth_coord.T[1]
+
+
+    # skymap
+    fig, ax = plt.subplots(figsize=(10,5),dpi=200)
+    ax.xaxis.set_major_locator(ticker.MultipleLocator(30))
+    ax.yaxis.set_major_locator(ticker.MultipleLocator(15))
+    ax.set_xlim(360,0)
+    ax.set_ylim(-90,90)
+    ax.grid(True)
+
+    # ax.scatter(ra_sat,dec_sat)
+    ax.scatter(ra_nadir,dec_nadir,c='b',label='Earth')
+    ax.scatter(Earth_ra,Earth_dec,c='b',s=3)
+
+    ax.scatter(event_ra,event_dec,marker='x',c='red',label='event')
+    ax.scatter(ra_sun,dec_sun,marker='*',c='yellow',label='Sun')
+    ax.legend()
+
+    fig.suptitle(f'{event_type}: {event_time}')
+    ax.set_xlabel('Ra')
+    ax.set_ylabel('Dec')
+    fig.tight_layout()
+    if (save_path != None):
+        filepath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\skymap.png"
+        fig.savefig(filepath)
+    fig.show()
+
+    return # skymap
+
+
 class Event():
 
     def __init__(self,time:str, event_type='Sun', ra=None, dec=None):
@@ -52,7 +115,7 @@ class Event():
 
         return ra_nadir, dec_nadir, Earth_ra, Earth_dec
 
-    def in_fov(self,lon,lat,alt=550):
+    def in_fov(self,lon,lat,alt=550,map=False):
         # check if one of Earth_coord points is between nadir and Sun;
         # if True = Sun is in FoV
         # if False = Sun in NOT in FoV
@@ -70,6 +133,11 @@ class Event():
                                 np.logical_and(Earth_dec < dec_nadir, Earth_dec > dec_event))
         cond = np.logical_and(cond_ra,cond_dec)
         result = any(cond)
+
+        if (map == True):
+            plot_skymap(event_time=self.time,event_type=self.event_type,event_ra=ra_event,event_dec=dec_event,
+                        lon=lon,lat=lat,alt=alt,save_path=None)
+                        
         return print(f'{self.event_type} at {self.time} in FoV: {result}')
 
 
@@ -405,67 +473,18 @@ class Observation():#MutableSequence):
             
         return # file with values
 
-    def plot_skymap(self, event_time, event_type, event_ra, event_dec,
+    def skymap(self, event_time, event_type, event_ra, event_dec,
                     save_path="C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\"):
         '''
         plots skymap with event position, sun position, Earth's shadow         
         was event in FoV? Y/N
         was Sun in FoV? Y/N
         '''
-        event_time = pd.Timestamp(event_time).round('ms')
         time_index = self.longitude.index[self.longitude.index.get_loc(event_time,method='nearest')]
         lon = self.longitude[time_index]
         lat = self.latitude[time_index]
         alt = self.altitude[time_index]
-        location = EarthLocation(lon=lon*u.deg, lat=lat*u.deg, height=alt*u.km)
-        altaz = AltAz(obstime=Time(event_time), location=location, alt=90*u.deg, az=180*u.deg)
+        
+        return plot_skymap(event_time=event_time,event_type=event_type,event_ra=event_ra,event_dec=event_dec,lon=lon,lat=lat,alt=alt,save_path=save_path)
 
-        ra_sat = altaz.transform_to(ICRS).ra.deg
-        dec_sat = altaz.transform_to(ICRS).dec.deg
-
-        dec_nadir = -1*lat #-1*dec_sat
-        if (ra_sat < 180):
-            ra_nadir = ra_sat + 180
-        elif (ra_sat > 180):
-            ra_nadir = ra_sat - 180
-
-        ra_sun = get_sun(Time(event_time)).ra.deg
-        dec_sun = get_sun(Time(event_time)).dec.deg
-
-        # Earth's angular radius from the satellite
-        Erad = np.arcsin(6378/(6378+alt))*180/np.pi
-        # Earth's shaddow
-        Earth_coord = SphericalCircle(center=SkyCoord(ra=ra_nadir*u.deg,dec=dec_nadir*u.deg),
-                                    radius=u.Quantity(value=Erad,unit=u.deg),
-                                    resolution=500).get_xy()
-        Earth_ra = Earth_coord.T[0]
-        Earth_dec = Earth_coord.T[1]
-
-
-        # skymap
-        fig, ax = plt.subplots(figsize=(10,5),dpi=200)
-        ax.xaxis.set_major_locator(ticker.MultipleLocator(30))
-        ax.yaxis.set_major_locator(ticker.MultipleLocator(15))
-        ax.set_xlim(360,0)
-        ax.set_ylim(-90,90)
-        ax.grid(True)
-
-        # ax.scatter(ra_sat,dec_sat)
-        ax.scatter(ra_nadir,dec_nadir,c='b',label='Earth')
-        ax.scatter(Earth_ra,Earth_dec,c='b',s=3)
-
-        ax.scatter(event_ra,event_dec,marker='x',c='red',label='event')
-        ax.scatter(ra_sun,dec_sun,marker='*',c='yellow',label='Sun')
-        ax.legend()
-
-        fig.suptitle(f'{event_type}: {event_time}')
-        ax.set_xlabel('Ra')
-        ax.set_ylabel('Dec')
-        fig.tight_layout()
-        if (save_path != None):
-            filepath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\skymap.png"
-            fig.savefig(filepath)
-        fig.show()
-
-        return # skymap
 
