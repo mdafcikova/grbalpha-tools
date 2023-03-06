@@ -12,6 +12,67 @@ from astropy.time import Time
 import scipy.optimize as opt
 import os 
 
+class Event():
+
+    def __init__(self,time:str, event_type='Sun', ra=None, dec=None):
+        self.time = time
+        self.event_type = event_type
+        self.ra = ra
+        self.dec = dec
+
+    def get_sun_coord(self):
+        # sun coordinates
+        ra_sun = get_sun(Time(self.time)).ra.deg
+        dec_sun = get_sun(Time(self.time)).dec.deg
+        return ra_sun, dec_sun
+
+    def get_Earth_coord(self,lon,lat,alt):
+        # satellite's ra, dec
+        location = EarthLocation(lon=lon*u.deg, lat=lat*u.deg)#, height=alt*u.km)
+        altaz = AltAz(obstime=Time(self.time), location=location, alt=90*u.deg, az=180*u.deg)
+        ra_sat = altaz.transform_to(ICRS).ra.deg
+        dec_sat = altaz.transform_to(ICRS).dec.deg
+
+        # nadir coordinates
+        dec_nadir = -1*lat #-1*dec_sat
+        if (ra_sat < 180):
+            ra_nadir = ra_sat + 180
+        elif (ra_sat > 180):
+            ra_nadir = ra_sat - 180
+
+        # Earth's angular radius from the satellite
+        Erad = np.arcsin(6378/(6378+alt))*180/np.pi
+
+        # Earth's shaddow
+        Earth_coord = SphericalCircle(center=SkyCoord(ra=ra_nadir*u.deg,dec=dec_nadir*u.deg),
+                                      radius=u.Quantity(value=Erad,unit=u.deg),
+                                      resolution=500).get_xy()
+        Earth_ra = Earth_coord.T[0]
+        Earth_dec = Earth_coord.T[1]
+
+        return ra_nadir, dec_nadir, Earth_ra, Earth_dec
+
+    def in_fov(self,lon,lat,alt=550):
+        # check if one of Earth_coord points is between nadir and Sun;
+        # if True = Sun is in FoV
+        # if False = Sun in NOT in FoV
+        ra_nadir, dec_nadir, Earth_ra, Earth_dec = self.get_Earth_coord(lon,lat,alt)
+
+        if np.logical_or(self.event_type == 'Sun', self.event_type == 'SF'):
+            ra_event, dec_event = self.get_sun_coord()
+        
+        else:
+            ra_event, dec_event = self.ra, self.dec
+        
+        cond_ra = np.logical_or(np.logical_and(Earth_ra > ra_nadir, Earth_ra < ra_event),
+                                np.logical_and(Earth_ra < ra_nadir, Earth_ra > ra_event))
+        cond_dec = np.logical_or(np.logical_and(Earth_dec > dec_nadir, Earth_dec < dec_event),
+                                np.logical_and(Earth_dec < dec_nadir, Earth_dec > dec_event))
+        cond = np.logical_and(cond_ra,cond_dec)
+        result = any(cond)
+        return print(f'{self.event_type} at {self.time} in FoV: {result}')
+
+
 @dataclass(frozen=True)
 class Chunk():
     exp_time: int
