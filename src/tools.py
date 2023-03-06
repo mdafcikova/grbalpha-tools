@@ -137,7 +137,7 @@ class Event():
         if (map == True):
             plot_skymap(event_time=self.time,event_type=self.event_type,event_ra=ra_event,event_dec=dec_event,
                         lon=lon,lat=lat,alt=alt,save_path=None)
-                        
+
         return print(f'{self.event_type} at {self.time} in FoV: {result}')
 
 
@@ -468,8 +468,9 @@ class Observation():#MutableSequence):
         if (save_path != None):
             filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\timeplot.png"
             fig.savefig(filepath)
-            filepath_sub = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\bg_sub_timeplot.png"
-            fig_sub.savefig(filepath_sub)
+            if (plot_fit == True):
+                filepath_sub = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\bg_sub_timeplot.png"
+                fig_sub.savefig(filepath_sub)
             
         return # file with values
 
