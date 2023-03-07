@@ -14,7 +14,7 @@ import os
 
 def plot_skymap(event_time, event_type, event_ra, event_dec,
                 lon,lat,alt=550,
-                save_path="C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\"
+                save_path=None
                 ):
     '''
     plots skymap with event position, sun position, Earth's shadow         
@@ -250,7 +250,7 @@ class Observation():#MutableSequence):
                        llim:int=5, rlim:int=10, plot_fit:bool=True, 
                        fit_function:str='linear'or'polynom',
                        second_locator:list=[0,15,30,45],
-                       save_path="C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\"):
+                       save_path=None):
         '''
         plots +-dtvalue part of the file around the event_time
         returns: peak time in (each band +) cutoff-370 + cutoff-890
@@ -383,10 +383,11 @@ class Observation():#MutableSequence):
             cps_bg = [cps_bgd(t) for t in timestamp]
             return cps_bg, popt, E_low, E_high
         
-        # statistics for <370 keV
-        make_fit(ADC_lower_limit=0,ADC_upper_limit=128,f=function)
-        # statistics for the entire range
-        cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
+        if (plot_fit == True):
+            # statistics for <370 keV
+            make_fit(ADC_lower_limit=0,ADC_upper_limit=128,f=function)
+            # statistics for the entire range
+            cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
         
         ### timeplot
         fig, ax = plt.subplots(nrows=ncols+1,figsize=(9,13),dpi=200,sharex=True)
@@ -397,7 +398,7 @@ class Observation():#MutableSequence):
 
         ax[-1].legend(loc='lower left')
 
-        ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{E_low} - {E_high} keV')
+        ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{self.ADC_to_keV(0)} - {self.ADC_to_keV(256)} keV')
         ax[-1].errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
         if (plot_fit == True):
             ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
@@ -475,7 +476,7 @@ class Observation():#MutableSequence):
         return # file with values
 
     def skymap(self, event_time, event_type, event_ra, event_dec,
-                    save_path="C:\\Users\\maria\\Desktop\\CubeSats\\GRBs\\analysis\\"):
+                    save_path=None):
         '''
         plots skymap with event position, sun position, Earth's shadow         
         was event in FoV? Y/N
