@@ -266,6 +266,11 @@ class Observation():#MutableSequence):
         '''
 
         event_time = pd.to_datetime(event_time)
+
+        if (save_path != None):
+            dirpath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+            os.makedirs(dirpath, exist_ok=True)
+
         dt_left = pd.Timedelta(dtvalue_left,tunit)
         dt_right = pd.Timedelta(dtvalue_right,tunit)
         start = event_time - dt_left
@@ -372,8 +377,6 @@ class Observation():#MutableSequence):
                       f"counts above background in T90: {round(c_raw_event_t90,3)} +- {round(c_raw_event_t90_err,3)}\n")
             
             if (save_path != None):
-                dirpath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
-                os.makedirs(dirpath, exist_ok=True)
                 filename = f"statistics_{E_low}-{E_high}keV.txt"
                 with open(dirpath+filename, "w") as text_file:
                     text_file.write(output)
@@ -396,10 +399,9 @@ class Observation():#MutableSequence):
         ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
         ax[-1].axvline(event_time,c='k',ls='--',lw=0.7)
 
-        ax[-1].legend(loc='lower left')
-
         ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{self.ADC_to_keV(0)} - {self.ADC_to_keV(256)} keV')
         ax[-1].errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
+        ax[-1].legend(loc='lower left')
         if (plot_fit == True):
             ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
             ax[-1].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
