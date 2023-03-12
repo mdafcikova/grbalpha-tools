@@ -6,7 +6,7 @@ import matplotlib.dates as mdates
 import scipy.optimize as opt
 
 #%% load grbalpha data
-filepath = r'C:\Users\maria\Desktop\CubeSats\GRBs\files\r22k27a_404736.json'
+filepath = r'C:\Users\maria\Desktop\CubeSats\GRBs\files\r23a03b_216320.json'
 time_format = '%Y-%m-%dZ%H:%M:%S.%f'
 
 datafile = pd.read_json(filepath,lines=True)
@@ -24,8 +24,15 @@ cond_trig_in_data = np.logical_and(trig_date > time[0], trig_date < time[len(tim
 trig_mission = trig.mission[cond_trig_in_data].reset_index(drop=True)
 trig_date = trig_date[cond_trig_in_data].reset_index(drop=True)
 
+#%% functions
+def linear(x,a,b):
+    return a*x + b
+
+def polynom(x,a,b,c):
+    return a*x*x + b*x + c
+
 #%% function def
-def check_triggers(grb_date,mission,dtvalue,use_cps,llim=3,rlim=10,vlines=False,fit=False):
+def check_triggers(grb_date,mission,dtvalue,use_cps,llim=3,rlim=10,vlines=False,fit=False,f=linear):
     dt = pd.Timedelta(dtvalue,tunit)
     start = grb_date - dt
     end = grb_date + dt 
@@ -69,17 +76,14 @@ def check_triggers(grb_date,mission,dtvalue,use_cps,llim=3,rlim=10,vlines=False,
           use_c = cps0 + cps1 + cps2 + cps3
     
     # fit
-    def linear(x,a,b):
-        return a*x + b
-
-    def make_fit(c,od,do):
+    def make_fit(c,od,do,f=f):
         xdata = timestamp[:od]+timestamp[do:]
         ydata = np.concatenate((c[:od],c[do:]))
 
-        popt, pcov = opt.curve_fit(linear,np.array(xdata),ydata)
+        popt, pcov = opt.curve_fit(f,np.array(xdata),ydata)
         
         def cps_bgd(x):
-            return linear(x,*popt)
+            return f(x,*popt)
 
         #index = np.argmax(c)
         index = np.where(c == np.max(c[od:do]))[0][0]
@@ -119,7 +123,7 @@ def check_triggers(grb_date,mission,dtvalue,use_cps,llim=3,rlim=10,vlines=False,
 
     xdata, od, do, popt, snr, T90, snr_T90 = make_fit(use_c,
                                         int(len(time_list)/2-llim),
-                                        int(len(time_list)/2+rlim)) 
+                                        int(len(time_list)/2+rlim),f) 
 
     print(f'trigger: {grb_date}')
     print(f'SNR (70-370 keV) = {snr}')
@@ -129,7 +133,7 @@ def check_triggers(grb_date,mission,dtvalue,use_cps,llim=3,rlim=10,vlines=False,
     # plot
     fig, ax = plt.subplots(figsize=(10,4),dpi=200)
     fig.suptitle(f'{mission}: {grb_date}')
-    ax.xaxis.set_major_locator(mdates.SecondLocator(interval=20))#byminute=[40,50,0,10]))
+    ax.xaxis.set_major_locator(mdates.SecondLocator(interval=15))#byminute=[40,50,0,10]))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
     plt.axvline(grb_date,c='r',lw=0.5)
     if (vlines == True):
@@ -137,7 +141,7 @@ def check_triggers(grb_date,mission,dtvalue,use_cps,llim=3,rlim=10,vlines=False,
         plt.axvline(time_list[do],c='k',alpha=0.25)
     
     if (fit == True):
-        plt.plot(time_list[:od]+time_list[do:],linear(np.array(xdata),*popt),'--',c='C4',lw=0.5)
+        plt.plot(time_list[:od]+time_list[do:],f(np.array(xdata),*popt),'--',c='C4',lw=0.5)
         plt.step(time_list,use_c,c='C4',where='mid',lw=1,label='70 - 370 keV')
         plt.errorbar(time_list,use_c,yerr=np.sqrt(cps0),c='C4',lw=0.5,fmt=' ')
     
@@ -153,16 +157,16 @@ def check_triggers(grb_date,mission,dtvalue,use_cps,llim=3,rlim=10,vlines=False,
     plt.xlim(min(time_list[:]),max(time_list))
     plt.xlabel('time [MM:SS]')
     plt.ylabel('count rate [counts/s]')
-    plt.legend()#loc='lower left')
+    plt.legend(loc='lower left')
     plt.show()
 
 #%% run function
-dtvalue = 2
+dtvalue = 1
 tunit = 'min'
 
 for trigger, mission in zip(trig_date,trig_mission):
     check_triggers(trigger,mission,dtvalue,use_cps='01',
-                   llim=5,rlim=4,vlines=True,fit=True)
+                   llim=1,rlim=1,vlines=False,fit=True,f=linear)
 
 #%% run function manually
 # trigger_list = ['2022-10-17 11:14:43.0']
