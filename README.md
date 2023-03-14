@@ -4,7 +4,7 @@ This is a package designed to visualize and do basic analysis of data from the G
 
 ## Instalation
 
-You can install *GRBAlpha tools* via [pip]:
+You can install *GRBAlpha tools* via pip:
 
 ```console
 pip install git+https://github.com/mdafcikova/grbalpha-tools.git

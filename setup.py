@@ -12,7 +12,5 @@ setup(
         'matplotlib>=3.6.2',
         'astropy>=5.1.1',
         'scipy>=1.9.3',
-        'os',
-        'warnings',
     ],
 )
