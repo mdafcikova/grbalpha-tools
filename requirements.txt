@@ -1,9 +1,0 @@
-dataclasses
-collections
-pandas
-numpy
-matplotlib
-astropy
-scipy
-os
-warnings
