@@ -7,5 +7,6 @@ setup(
     author='Marianna Dafcikova',
     install_requires=[         
         'astropy>=5.1.1',
+        'pyorbital>=1.7.3',
     ],
 )

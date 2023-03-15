@@ -8,6 +8,7 @@ from astropy.coordinates import ICRS, AltAz, EarthLocation, SkyCoord, get_sun
 from astropy.visualization.wcsaxes import SphericalCircle
 import astropy.units as u
 from astropy.time import Time
+from pyorbital.orbital import Orbital
 import scipy.optimize as opt
 import os 
 import warnings
@@ -164,18 +165,14 @@ class Event():
 
         return ra_nadir, dec_nadir, Earth_ra, Earth_dec
 
-    def in_fov(self,lon,lat,alt=550,map=False):
+    def in_fov(self,sat='GRBAlpha',map=False):
         '''
         Checks if event is in satellite's FoV.
 
         Parameters
         ----------
-        lon: float
-            satellite's longitude in degrees
-        lat: float
-            satellite's latitude in degrees
-        alt: float
-            satellite's altitude in km
+        sat: str
+            name of the satellite to calculate the fov
         map: bool
             if map=True, a skymap will be created
             default is False
@@ -183,6 +180,10 @@ class Event():
         # check if one of Earth_coord points is between nadir and Sun;
         # if True = Sun is in FoV
         # if False = Sun in NOT in FoV
+
+        orb = Orbital(sat)
+        lon, lat, alt = orb.get_lonlatalt(self.time)
+
         ra_nadir, dec_nadir, Earth_ra, Earth_dec = self.get_Earth_coord(lon,lat,alt)
 
         if np.logical_or(self.event_type == 'Sun', self.event_type == 'SF'):
