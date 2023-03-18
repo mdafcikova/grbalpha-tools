@@ -521,7 +521,13 @@ class Observation():#MutableSequence):
             cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
         
         ### timeplot
-        fig, ax = plt.subplots(nrows=ncols+1,figsize=(9,13),dpi=200,sharex=True)
+        # do not plot energy bands below cutoff
+        empty_bins = int(self.cutoff/(2**self.bin_mode))
+
+        w = 9
+        h = 13
+
+        fig, ax = plt.subplots(nrows=ncols-empty_bins+1,figsize=(w,h),dpi=200,sharex=True)
         fig.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
         ax[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
         ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
@@ -533,7 +539,7 @@ class Observation():#MutableSequence):
             ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
                         
             ### bg_sub timeplot
-            fig_sub, ax_sub = plt.subplots(nrows=ncols+1,figsize=(9,13),dpi=200,sharex=True)
+            fig_sub, ax_sub = plt.subplots(nrows=ncols-empty_bins+1,figsize=(9,13),dpi=200,sharex=True)
             fig_sub.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
             ax_sub[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
             ax_sub[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
@@ -551,7 +557,7 @@ class Observation():#MutableSequence):
         ax[-1].legend(loc='lower left')
 
         i = 0
-        for band in reversed(range(ncols)):
+        for band in reversed(range(empty_bins,ncols)):
             ADC_low = band*256/ncols
             E_low = self.ADC_to_keV(ADC_low)
             ADC_high = (band+1)*256/ncols
@@ -581,7 +587,6 @@ class Observation():#MutableSequence):
 
         ax[-1].set_xlim(min(time_list),max(time_list))
         ax[-1].set_xlabel('time [MM:SS]')
-        # ax.set_ylabel('count rate [counts/s]')
         fig.supylabel('count rate [counts/s]')
         fig.tight_layout()
         fig.subplots_adjust(hspace=0)
@@ -590,7 +595,6 @@ class Observation():#MutableSequence):
         if (plot_fit == True):
             ax_sub[-1].set_xlim(min(time_list),max(time_list))
             ax_sub[-1].set_xlabel('time [MM:SS]')
-            # ax.set_ylabel('count rate [counts/s]')
             fig_sub.supylabel('count rate [counts/s]')
             fig_sub.tight_layout()
             fig_sub.subplots_adjust(hspace=0)
