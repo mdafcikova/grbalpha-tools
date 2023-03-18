@@ -94,6 +94,21 @@ def plot_skymap(event_time, event_type, event_ra, event_dec,
 
     return # skymap
 
+def ADC_to_keV(self,ADC):
+    '''
+    Converts ADC value to energy keV.
+
+    Parameters
+    ----------
+    ADC: int
+        ADC value to be converted
+    '''
+    keV = 4.08*ADC - 154
+    keV_cutoff = 4.08*self.cutoff - 154
+    if (keV < keV_cutoff):
+        keV = keV_cutoff
+    return int(round(keV,-1))
+
 
 class Event():
     '''
@@ -279,7 +294,7 @@ class Observation():#MutableSequence):
                      data=self.data[time]
                      )
 
-    def is_GRB_in_file(self,path=r'C:\Users\maria\Desktop\CubeSats\all_triggers.csv'):
+    def is_GRB_in_file(self,path):
         '''
         Checks if specified file contains a GRB.
         
@@ -299,7 +314,7 @@ class Observation():#MutableSequence):
         else:
             return [x for x in zip(trig_date,trig_mission)]
 
-    def is_SGR_in_file(self,path=r'C:\Users\maria\Desktop\CubeSats\SGRJ1935+2154_list.csv'):
+    def is_SGR_in_file(self,path):
         '''
         Checks if specified file contains a SGR.
         
@@ -319,7 +334,7 @@ class Observation():#MutableSequence):
         else:
             return [x for x in zip(trig_date,trig_mission)]
 
-    def is_SF_in_file(self,path=r'C:\Users\maria\Desktop\CubeSats\KW_sf_list.csv'):
+    def is_SF_in_file(self,path):
         '''
         Checks if specified file contains a SF.
         
@@ -338,22 +353,7 @@ class Observation():#MutableSequence):
             return 'No SF in file.'
         else:
             return [x for x in zip(trig_date,sf_class)]
-    
-    def ADC_to_keV(self,ADC):
-        '''
-        Converts ADC value to energy keV.
-
-        Parameters
-        ----------
-        ADC: int
-            ADC value to be converted
-        '''
-        keV = 4.08*ADC - 154
-        keV_cutoff = 4.08*self.cutoff - 154
-        if (keV < keV_cutoff):
-            keV = keV_cutoff
-        return int(round(keV,-1))
-    
+        
     def check_event(self, event_time, event_type:str, 
                     dtvalue_left:float=1, dtvalue_right:float=1, tunit:str='min', 
                     plot_fit:bool=False, llim:int=5, rlim:int=10, 
@@ -434,8 +434,8 @@ class Observation():#MutableSequence):
                 return a2*x*x + a1*x + a0
 
         def make_fit(ADC_lower_limit,ADC_upper_limit,f):
-            E_low = self.ADC_to_keV(ADC_lower_limit)
-            E_high = self.ADC_to_keV(ADC_upper_limit)
+            E_low = ADC_to_keV(ADC_lower_limit)
+            E_high = ADC_to_keV(ADC_upper_limit)
             
             E_n_bins = int(2**8/2**self.bin_mode)
             first_band = ADC_lower_limit*E_n_bins/256
@@ -552,16 +552,16 @@ class Observation():#MutableSequence):
                         
             ax_sub[-1].legend(loc='lower left')
 
-        ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{self.ADC_to_keV(0)} - {self.ADC_to_keV(256)} keV')
+        ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0)} - {ADC_to_keV(256)} keV')
         ax[-1].errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
         ax[-1].legend(loc='lower left')
 
         i = 0
         for band in reversed(range(empty_bins,ncols)):
             ADC_low = band*256/ncols
-            E_low = self.ADC_to_keV(ADC_low)
+            E_low = ADC_to_keV(ADC_low)
             ADC_high = (band+1)*256/ncols
-            E_high = self.ADC_to_keV(ADC_high)
+            E_high = ADC_to_keV(ADC_high)
             if (E_low != E_high):
                 # ax[i].xaxis.set_major_locator(ticker.NullLocator())
                 ax[i].axvline(event_time,c='k',ls='--',lw=0.7)
