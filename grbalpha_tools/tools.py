@@ -359,6 +359,7 @@ class Observation():#MutableSequence):
                     plot_fit:bool=False, llim:int=5, rlim:int=10, 
                     fit_function:str='linear'or'polynom',
                     second_locator:list=[0,15,30,45],
+                    figsize=(9,13),
                     save_path=None):
         '''
         Returns a lightcurve around specified trigger. If plot_fit=True, also returns a background subtracted lightcurve and statistics for each energy band.
@@ -387,6 +388,8 @@ class Observation():#MutableSequence):
             if 'polynom', a second order polynomial will be used to fit the background
         second_locator: list
             list of seconds where tickers should be placed
+        figsize: Tuple
+            (width,height) of the output figure
         save_path: str
             path to folder where the output folder will be saved
             if save_path=None (default), the output will not be saved 
@@ -524,10 +527,7 @@ class Observation():#MutableSequence):
         # do not plot energy bands below cutoff
         empty_bins = int(self.cutoff/(2**self.bin_mode))
 
-        w = 9
-        h = 13
-
-        fig, ax = plt.subplots(nrows=ncols-empty_bins+1,figsize=(w,h),dpi=200,sharex=True)
+        fig, ax = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
         fig.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
         ax[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
         ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
@@ -539,7 +539,7 @@ class Observation():#MutableSequence):
             ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
                         
             ### bg_sub timeplot
-            fig_sub, ax_sub = plt.subplots(nrows=ncols-empty_bins+1,figsize=(9,13),dpi=200,sharex=True)
+            fig_sub, ax_sub = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
             fig_sub.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
             ax_sub[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
             ax_sub[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
