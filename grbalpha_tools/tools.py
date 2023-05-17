@@ -536,7 +536,6 @@ class Observation():#MutableSequence):
         # fig.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
         # ax[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
         # ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
-        ax[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
 
         if (plot_fit == True):
             ax[-1].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
@@ -548,7 +547,7 @@ class Observation():#MutableSequence):
             # fig_sub.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
             # ax_sub[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
             # ax_sub[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
-            ax_sub[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
+            # ax_sub[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
             ax_sub[-1].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
 
             ax_sub[-1].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
@@ -569,7 +568,7 @@ class Observation():#MutableSequence):
             E_high = ADC_to_keV(ADC_high,cutoff=self.cutoff)
             if (E_low != E_high):
                 # ax[i].xaxis.set_major_locator(ticker.NullLocator())
-                ax[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
+                
                 if (plot_fit == True):
                     cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=ADC_low,ADC_upper_limit=ADC_high,f=function)
                     ax[i].plot(x_data,function(np.array(timestamp),*popt),lw=0.5,c='C0')
@@ -577,12 +576,15 @@ class Observation():#MutableSequence):
                     ax[i].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
 
                     ### bg_sub plot
-                    ax_sub[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
+                    # ax_sub[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
                     ax_sub[i].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
                     ax_sub[i].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
                     ax_sub[i].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
                     ax_sub[i].step(x_data,cps[band]-cps_bg,where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
                     ax_sub[i].legend(loc='lower left')
+                else:
+                    ax[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
+                    ax[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
 
                 ax[i].step(x_data,cps[band],where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
                 ax[i].errorbar(x_data,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C0',fmt=' ')
