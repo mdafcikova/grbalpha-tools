@@ -527,33 +527,38 @@ class Observation():#MutableSequence):
         # do not plot energy bands below cutoff
         empty_bins = int(self.cutoff/(2**self.bin_mode))
 
+        x_data = np.arange(0,len(time_list)/self.exp_time,self.exp_time)
+        x_event_time = (event_time - time_list[0]).seconds + (event_time - time_list[0]).microseconds*1e-6
+        x_index_from = (time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s') - time_list[0]).seconds + (time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s') - time_list[0]).microseconds*1e-6
+        x_index_to = (time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s') - time_list[0]).seconds + (time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s') - time_list[0]).microseconds*1e-6
+        
         fig, ax = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
-        fig.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-        ax[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
-        ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
-        ax[-1].axvline(event_time,c='k',ls='--',lw=0.7)
+        # fig.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+        # ax[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
+        # ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
+        ax[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
 
         if (plot_fit == True):
-            ax[-1].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
-            ax[-1].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
-            ax[-1].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
+            ax[-1].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
+            ax[-1].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
+            ax[-1].plot(x_data,function(np.array(timestamp),*popt),lw=0.5,c='C0')
                         
             ### bg_sub timeplot
             fig_sub, ax_sub = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
-            fig_sub.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-            ax_sub[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
-            ax_sub[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
-            ax_sub[-1].axvline(event_time,c='k',ls='--',lw=0.7)
+            # fig_sub.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
+            # ax_sub[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
+            # ax_sub[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
+            ax_sub[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
             ax_sub[-1].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
 
-            ax_sub[-1].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
-            ax_sub[-1].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
-            ax_sub[-1].step(time_list,cps.sum(axis=0)-cps_bg,c='C0',where='mid',lw=0.75,label=f'{E_low} - {E_high} keV')
+            ax_sub[-1].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
+            ax_sub[-1].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
+            ax_sub[-1].step(x_data,cps.sum(axis=0)-cps_bg,c='C0',where='mid',lw=0.75,label=f'{E_low} - {E_high} keV')
                         
             ax_sub[-1].legend(loc='lower left')
 
-        ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0,cutoff=self.cutoff)} - {ADC_to_keV(256,cutoff=self.cutoff)} keV')
-        ax[-1].errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
+        ax[-1].step(x_data,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0,cutoff=self.cutoff)} - {ADC_to_keV(256,cutoff=self.cutoff)} keV')
+        ax[-1].errorbar(x_data,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
         ax[-1].legend(loc='lower left')
 
         i = 0
@@ -564,37 +569,37 @@ class Observation():#MutableSequence):
             E_high = ADC_to_keV(ADC_high,cutoff=self.cutoff)
             if (E_low != E_high):
                 # ax[i].xaxis.set_major_locator(ticker.NullLocator())
-                ax[i].axvline(event_time,c='k',ls='--',lw=0.7)
+                ax[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
                 if (plot_fit == True):
                     cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=ADC_low,ADC_upper_limit=ADC_high,f=function)
-                    ax[i].plot(time_list,function(np.array(timestamp),*popt),lw=0.5,c='C0')
-                    ax[i].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
-                    ax[i].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
+                    ax[i].plot(x_data,function(np.array(timestamp),*popt),lw=0.5,c='C0')
+                    ax[i].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
+                    ax[i].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
 
                     ### bg_sub plot
-                    ax_sub[i].axvline(event_time,c='k',ls='--',lw=0.7)
+                    ax_sub[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
                     ax_sub[i].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
-                    ax_sub[i].axvline(time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)
-                    ax_sub[i].axvline(time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s'),c='k',lw=0.5,alpha=0.5)        
-                    ax_sub[i].step(time_list,cps[band]-cps_bg,where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
+                    ax_sub[i].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
+                    ax_sub[i].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
+                    ax_sub[i].step(x_data,cps[band]-cps_bg,where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
                     ax_sub[i].legend(loc='lower left')
 
-                ax[i].step(time_list,cps[band],where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
-                ax[i].errorbar(time_list,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C0',fmt=' ')
+                ax[i].step(x_data,cps[band],where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
+                ax[i].errorbar(x_data,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C0',fmt=' ')
                 ax[i].legend(loc='lower left')
 
                 i += 1
 
-        ax[-1].set_xlim(min(time_list),max(time_list))
-        ax[-1].set_xlabel('time [MM:SS]')
+        ax[-1].set_xlim(min(x_data),max(x_data))
+        ax[-1].set_xlabel(f"seconds from {time_list[0].strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]} UTC")
         fig.supylabel('count rate [counts/s]')
         fig.tight_layout()
         fig.subplots_adjust(hspace=0)
         fig.show()
 
         if (plot_fit == True):
-            ax_sub[-1].set_xlim(min(time_list),max(time_list))
-            ax_sub[-1].set_xlabel('time [MM:SS]')
+            ax_sub[-1].set_xlim(min(x_data),max(x_data))
+            ax_sub[-1].set_xlabel(f"seconds from {time_list[0].strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]} UTC")
             fig_sub.supylabel('count rate [counts/s]')
             fig_sub.tight_layout()
             fig_sub.subplots_adjust(hspace=0)
