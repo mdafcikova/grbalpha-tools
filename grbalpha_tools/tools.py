@@ -94,7 +94,7 @@ def plot_skymap(event_time, event_type, event_ra, event_dec,
 
     return # skymap
 
-def ADC_to_keV(self,ADC):
+def ADC_to_keV(ADC,cutoff):
     '''
     Converts ADC value to energy keV.
 
@@ -104,7 +104,7 @@ def ADC_to_keV(self,ADC):
         ADC value to be converted
     '''
     keV = 4.08*ADC - 154
-    keV_cutoff = 4.08*self.cutoff - 154
+    keV_cutoff = 4.08*cutoff - 154
     if (keV < keV_cutoff):
         keV = keV_cutoff
     return int(round(keV,-1))
@@ -434,8 +434,8 @@ class Observation():#MutableSequence):
                 return a2*x*x + a1*x + a0
 
         def make_fit(ADC_lower_limit,ADC_upper_limit,f):
-            E_low = ADC_to_keV(ADC_lower_limit)
-            E_high = ADC_to_keV(ADC_upper_limit)
+            E_low = ADC_to_keV(ADC=ADC_lower_limit,cutoff=self.cutoff)
+            E_high = ADC_to_keV(ADC=ADC_upper_limit,cutoff=self.cutoff)
             
             E_n_bins = int(2**8/2**self.bin_mode)
             first_band = ADC_lower_limit*E_n_bins/256
@@ -552,16 +552,16 @@ class Observation():#MutableSequence):
                         
             ax_sub[-1].legend(loc='lower left')
 
-        ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0)} - {ADC_to_keV(256)} keV')
+        ax[-1].step(time_list,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0,cutoff=self.cutoff)} - {ADC_to_keV(256,cutoff=self.cutoff)} keV')
         ax[-1].errorbar(time_list,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
         ax[-1].legend(loc='lower left')
 
         i = 0
         for band in reversed(range(empty_bins,ncols)):
             ADC_low = band*256/ncols
-            E_low = ADC_to_keV(ADC_low)
+            E_low = ADC_to_keV(ADC_low,cutoff=self.cutoff)
             ADC_high = (band+1)*256/ncols
-            E_high = ADC_to_keV(ADC_high)
+            E_high = ADC_to_keV(ADC_high,cutoff=self.cutoff)
             if (E_low != E_high):
                 # ax[i].xaxis.set_major_locator(ticker.NullLocator())
                 ax[i].axvline(event_time,c='k',ls='--',lw=0.7)
