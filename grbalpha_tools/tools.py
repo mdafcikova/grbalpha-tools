@@ -602,11 +602,14 @@ class Observation():#MutableSequence):
 
 
         if (save_path != None):
-            filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\lightcurve.png"
-            fig.savefig(filepath)
             if (plot_fit == True):
                 filepath_sub = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\bg_sub_lightcurve.png"
                 fig_sub.savefig(filepath_sub)
+                filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\lightcurve_fit.png"
+                fig.savefig(filepath)
+            else:
+                filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\lightcurve.png"
+                fig.savefig(filepath)
             
         return # file with values
 
