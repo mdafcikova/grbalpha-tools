@@ -94,7 +94,7 @@ def plot_skymap(event_time, event_type, event_ra, event_dec,
 
     return # skymap
 
-def ADC_to_keV(ADC,cutoff):
+def ADC_to_keV(ADC,cutoff,gain=4.31,offset=154.0):
     '''
     Converts ADC value to energy keV.
 
@@ -102,9 +102,15 @@ def ADC_to_keV(ADC,cutoff):
     ----------
     ADC: int
         ADC value to be converted
+    cutoff: int
+        cutoff value in ADC
+    gain: float
+        gain value (4.08 keV/ch pre April 2023; 4.31 keV/ch since April 2023)
+    offset: float
+        offset value to use (154 keV)
     '''
-    keV = 4.08*ADC - 154
-    keV_cutoff = 4.08*cutoff - 154
+    keV = gain*ADC - offset
+    keV_cutoff = gain*cutoff - offset
     if (keV < keV_cutoff):
         keV = keV_cutoff
     return int(round(keV,-1))
