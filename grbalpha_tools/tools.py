@@ -285,6 +285,8 @@ class Observation():#MutableSequence):
             vals = np.arange(len(keys))
             names = {keys[i]:vals[i] for i in range(len(keys))}
             self.data = df[keys].rename(columns=names).set_axis(self.time_utc.round('ms'))
+        else:
+            print('ERROR: wrong filename')
 
     def get_chunk(self,time:str):
         '''
@@ -360,15 +362,393 @@ class Observation():#MutableSequence):
         else:
             return [x for x in zip(trig_date,sf_class)]
         
+    def cut_data_around_trigger(self,event_time,
+                                dtvalue_left:float=1, dtvalue_right:float=1, tunit:str='min'):
+        '''
+        Returns pd.DataFrame containing only data around the specified trigger.
+
+        Parameters
+        ----------
+
+        '''
+        
+        event_time = pd.to_datetime(event_time)
+
+        dt_left = pd.Timedelta(dtvalue_left,tunit)
+        dt_right = pd.Timedelta(dtvalue_right,tunit)
+        start = event_time - dt_left
+        end = event_time + dt_right 
+        
+        dt_start = self.data.index - start
+        # print((dt_start==min(abs(dt_start)))[200:400])
+
+        index_start = pd.Series(dt_start.where(abs(dt_start)==min(abs(dt_start)))).dropna().index[0]
+        dt_end = self.data.index - end
+        index_end = pd.Series(dt_end.where(abs(dt_end)==min(abs(dt_end)))).dropna().index[0]
+        df = self.data[index_start:index_end]
+
+        return df
+    
+    def select_eband(self, df, eband):
+        '''
+        
+        df: 
+
+        Returns beginning, xdata and ydata of selected eband.
+
+        beginning: timestamp of the beginning of the dataset 
+        xdata: seconds from beginning
+        ydata: count rate in specified energy band 
+
+        '''
+
+        beginning = df.index[0]
+
+        xdata = self.exp_time * np.arange(0,len(df))
+
+        if (eband == 'all'):
+            ydata = 0
+            for i in range(len(df.columns)):
+                ydata += df[i]
+        elif (eband == 'batse'):
+            ydata = 0
+            for i in range(int(128/(2**self.bin_mode))):
+                ydata += df[i]
+        else:
+            ydata = df[eband]
+
+        return beginning, xdata, np.array(ydata)
+
+    def count_rate_data(self,data):
+        '''
+        data: (raw) ydata - counts per exposure time 
+        '''
+
+        return data/self.exp_time
+
+
+    def fit_data(self, xdata, ydata, llim, rlim, fit_function='linear'or'polynom'):
+        '''
+        Returns background fit to the data = ydata from the fit.
+        
+        Parameters
+        ----------
+
+        ydata: count rate data! (not counts in exp time)
+
+        '''
+
+        if (fit_function == 'linear'):
+            def function(x,a1,a0):
+                return a1*x + a0
+        elif (fit_function == 'polynom'):
+            def function(x,a2,a1,a0):
+                return a2*x*x + a1*x + a0
+        else:
+            print('ERROR: incorrect fit function')
+
+        bg_xdata = np.concatenate((xdata[:llim],xdata[rlim:]))
+        bg_ydata = np.concatenate((ydata[:llim],ydata[rlim:]))
+
+        popt, pcov = opt.curve_fit(function,bg_xdata,bg_ydata)
+            
+        def bgd_data(x):
+            return function(x,*popt)
+        
+        fit = [bgd_data(x) for x in xdata]
+
+        return fit
+    
+    def bg_sub_ydata(self,ydata,fit):
+        '''
+        Returns ydata for background subtracted lightcurves.
+
+        '''
+        return (ydata - fit)
+
+    
+    def peak_stats(self,xdata,ydata,beginning,llim,rlim,fit_function='linear'or'polynom'):
+        '''
+        ydata: raw NOT background subtracted, COUNT RATE ydata
+        '''
+
+        y_fit = self.fit_data(xdata,ydata,llim,rlim,fit_function)
+        y_bg_sub = self.bg_sub_ydata(ydata,y_fit)
+
+        peak_cr = max(y_bg_sub)
+        idx = np.argmax(y_bg_sub)
+        peak_cr_error = np.sqrt(ydata[idx]*self.exp_time)/self.exp_time
+        peak_snr = peak_cr/peak_cr_error
+
+        x = xdata[idx]
+
+        peak_time = beginning + pd.Timedelta(value=x,unit='second')
+
+        return peak_time, peak_cr, peak_cr_error, peak_snr
+
+    def t90_stats(self,xdata,ydata,beginning,llim,rlim,fit_function='linear'or'polynom'):
+        '''
+        ydata: raw NOT background subtracted, COUNT RATE ydata
+        '''
+
+        x_event = xdata[llim:rlim]
+
+        y_fit = self.fit_data(xdata,ydata,llim,rlim,fit_function)
+        y_bg_sub = self.bg_sub_ydata(ydata,y_fit)
+        y_event = y_bg_sub[llim:rlim]
+
+        cum = np.cumsum(y_event)
+        cum_5 = cum[-1] * 0.05
+        cum_95 = cum[-1] * 0.95
+
+        # def get_x_from_cum_y(cum,y,x):
+            
+        #     lim1,lim2 = np.sort(abs(cum-y))[:2]
+
+        #     mins = [np.argwhere(abs(cum-y)==lim1)[0][0],np.argwhere(abs(cum-y)==lim2)[0][0]]
+        #     min1 = min(mins)
+        #     min2 = max(mins)
+
+        #     def f(x,a1,a0):
+        #         return a1*x + a0
+
+        #     popt, pcov = opt.curve_fit(f,[x[min1],x[min2]],[y[min1],y[min2]])
+
+        #     def inv_f(y,a1,a0):
+        #         return (y-a0)/a1
+
+        #     new_x = inv_f(y,*popt)
+
+        #     return new_x 
+        
+        # t90_start = get_x_from_cum_y(cum,cum_5,x_event)
+        # t90_end = get_x_from_cum_y(cum,cum_95,x_event)
+
+        minimum = np.sort(abs(cum-cum_5))[0]
+        index_min = np.argwhere(abs(cum-cum_5)==minimum)[0][0]
+        t90_start = x_event[index_min]
+
+        maximum = np.sort(abs(cum-cum_95))[0]
+        index_max = np.argwhere(abs(cum-cum_95)==maximum)[0][0]
+        t90_end = x_event[index_max]
+
+        t90 = t90_end - t90_start
+
+        total_counts = sum(y_event[index_min:index_max]*self.exp_time)
+        total_counts_error = np.sqrt(sum(ydata[index_min:index_max]*self.exp_time))
+        t90_snr = total_counts/total_counts_error
+
+        t90_start_time = beginning + pd.Timedelta(t90_start,unit='second')
+        t90_end_time = beginning + pd.Timedelta(t90_end,unit='second')
+
+        return t90_start_time, t90_end_time, t90, total_counts, total_counts_error, t90_snr
+    
+    def get_statistics(self,xdata,ydata,beginning,llim,rlim,fit_function='linear'or'polynom',
+                       ADC_low=None,ADC_high=None,gain=4.31,event_type=None,event_time=None,save_path=None):
+        '''
+
+        E_low, E_high: limits of the studied energy band in ADC values
+        '''
+        
+        peak_time, peak_cr, peak_cr_error, peak_snr = self.peak_stats(xdata,ydata,beginning,llim,rlim,fit_function)
+        t90_start_time, t90_end_time, t90, total_counts, total_counts_error, t90_snr = self.t90_stats(xdata,ydata,beginning,llim,rlim,fit_function)
+
+        output = (f"trigger: {event_type} at {event_time}:\n"+
+                  f"energy band [ADC]: {ADC_low} - {ADC_high}\n"+
+                  f"energy band [keV]: {ADC_to_keV(ADC_low,self.cutoff,gain)} - {ADC_to_keV(ADC_high,self.cutoff,gain)}\n"+
+                  f"gain used for ADC - keV conversion [keV/ch]: {gain}\n"+
+                  f"cutoff [ADC]: {self.cutoff}\n"+
+                  f"fit function: {fit_function}\n\n"+
+                  f"peak time [UTC]: {peak_time}\n"+
+                  f"SNR at peak: {round(peak_snr,3)}\n"+
+                  f"count rate [cnt/s] above background at peak: {round(peak_cr,3)} +- {round(peak_cr_error,3)}\n\n"+
+                  f"T90 start time [UTC]: {t90_start_time}\n"+
+                  f"T90 end time [UTC]: {t90_end_time}\n"+
+                  f"T90 duration [s]: {t90}\n"+
+                  f"SNR in T90: {round(t90_snr,3)}\n"+
+                  f"counts above background in T90: {round(total_counts,3)} +- {round(total_counts_error,3)}\n")
+
+        if (save_path != None):
+            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+
+            if (os.path.exists(dirpath)==False):
+                os.makedirs(dirpath)
+
+            filename = f"statistics_{ADC_low}-{ADC_high}ADC.txt"
+            with open(dirpath+filename, "w") as text_file:
+                text_file.write(output)
+
+        return print(output)        
+
+
+
+    def lightcurve(self, event_time, event_type, dtvalue_left=1, dtvalue_right=1, tunit='min', figsize=(9,13), gain=4.31, save_path=None):
+        '''
+        Returns lightcurve around the specified trigger.
+
+        '''
+        df = self.cut_data_around_trigger(event_time,dtvalue_left,dtvalue_right,tunit)
+
+        # number of energy bands
+        ncols = int(2**8/2**self.bin_mode)
+        # do not plot energy bands below cutoff
+        empty_bins = int(self.cutoff/(2**self.bin_mode))
+        
+        fig, ax = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
+
+        beginning, xdata, ydata = self.select_eband(df,'all')
+        ydata = self.count_rate_data(ydata)
+        x_event_time = int((pd.Timestamp(event_time) - beginning).to_numpy())*1e-9
+
+        ax[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
+        ax[-1].step(xdata,ydata,c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0,cutoff=self.cutoff,gain=gain)} - {ADC_to_keV(256,cutoff=self.cutoff,gain=gain)} keV')
+        ax[-1].errorbar(xdata,ydata,yerr=np.sqrt(ydata*self.exp_time)/self.exp_time,c='C0',lw=0.5,fmt=' ')
+        ax[-1].legend(loc='lower left')
+
+        i = 0
+        for band in reversed(range(empty_bins,ncols)):
+            ADC_low = band*256/ncols
+            E_low = ADC_to_keV(ADC_low,cutoff=self.cutoff,gain=gain)
+            ADC_high = (band+1)*256/ncols
+            E_high = ADC_to_keV(ADC_high,cutoff=self.cutoff,gain=gain)
+
+            beginning, xdata, ydata = self.select_eband(df,band)
+            ydata = self.count_rate_data(ydata)
+
+            if (E_low != E_high):
+                ax[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
+                ax[i].step(xdata,ydata,where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
+                ax[i].errorbar(xdata,ydata,yerr=np.sqrt(ydata*self.exp_time)/self.exp_time,lw=0.5,c='C0',fmt=' ')
+                ax[i].legend(loc='lower left')
+
+                i += 1
+
+        ax[-1].set_xlim(min(xdata),max(xdata))
+        ax[-1].set_xlabel(f"seconds from {beginning.round('1s').strftime(format='%Y-%m-%d-%H:%M:%S')} UTC")
+        fig.supylabel('count rate [counts/s]')
+        fig.tight_layout()
+        fig.subplots_adjust(hspace=0)
+        fig.show()
+
+        if (save_path != None):
+            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+
+            if (os.path.exists(dirpath)==False):
+                os.makedirs(dirpath)
+
+            filepath = dirpath + "lightcurve.png"
+            fig.savefig(filepath)
+
+    def bg_sub_lightcurve(self, event_time, event_type, llim, rlim, fit_function='linear'or'polynom', dtvalue_left=1, dtvalue_right=1, tunit='min', figsize=(9,13), gain=4.31, save_path=None):
+        '''
+        description
+        '''
+
+        df = self.cut_data_around_trigger(event_time,dtvalue_left,dtvalue_right,tunit)
+
+        # number of energy bands
+        ncols = int(2**8/2**self.bin_mode)
+        # do not plot energy bands below cutoff
+        empty_bins = int(self.cutoff/(2**self.bin_mode))
+
+        # lightcurve with fit         
+        fig, ax = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
+
+        beginning, xdata, ydata = self.select_eband(df,'all')
+        x_event_time = int((pd.Timestamp(event_time) - beginning).to_numpy())*1e-9
+
+        ydata = self.count_rate_data(ydata)
+        y_fit = self.fit_data(xdata,ydata,llim,rlim,fit_function)
+
+        ax[-1].step(xdata,ydata,c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0,cutoff=self.cutoff,gain=gain)} - {ADC_to_keV(256,cutoff=self.cutoff,gain=gain)} keV')
+        ax[-1].errorbar(xdata,ydata,yerr=np.sqrt(ydata*self.exp_time)/self.exp_time,c='C0',lw=0.5,fmt=' ')
+
+        ax[-1].axvline(xdata[llim]-self.exp_time/2,c='k',lw=0.6,alpha=0.5)
+        ax[-1].axvline(xdata[rlim]-self.exp_time/2,c='k',lw=0.6,alpha=0.5)        
+        ax[-1].plot(xdata,y_fit,c='C0',lw=0.6)
+
+        ax[-1].legend(loc='lower left')
+
+        # background subtracted lightcurve
+        y_bg_sub = self.bg_sub_ydata(ydata,y_fit)
+        fig_sub, ax_sub = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
+        ax_sub[-1].axhline(0,c='k',ls='--',lw=0.7)
+
+        ax_sub[-1].axvline(xdata[llim]-self.exp_time/2,c='k',lw=0.6,alpha=0.5)
+        ax_sub[-1].axvline(xdata[rlim]-self.exp_time/2,c='k',lw=0.6,alpha=0.5)        
+        ax_sub[-1].step(xdata,y_bg_sub,c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0,cutoff=self.cutoff,gain=gain)} - {ADC_to_keV(256,cutoff=self.cutoff,gain=gain)} keV')
+        ax_sub[-1].legend(loc='lower left')
+
+
+        i = 0
+        for band in reversed(range(empty_bins,ncols)):
+            ADC_low = band*256/ncols
+            E_low = ADC_to_keV(ADC_low,cutoff=self.cutoff,gain=gain)
+            ADC_high = (band+1)*256/ncols
+            E_high = ADC_to_keV(ADC_high,cutoff=self.cutoff,gain=gain)
+
+            beginning, xdata, ydata = self.select_eband(df,band)
+            ydata = self.count_rate_data(ydata)
+            y_fit = self.fit_data(xdata,ydata,llim,rlim,fit_function)
+            y_bg_sub = self.bg_sub_ydata(ydata,y_fit)
+
+            if (E_low != E_high):
+                ax[i].step(xdata,ydata,where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
+                ax[i].errorbar(xdata,ydata,yerr=np.sqrt(ydata*self.exp_time)/self.exp_time,lw=0.5,c='C0',fmt=' ')
+
+                ax[i].axvline(xdata[llim]-self.exp_time/2,c='k',lw=0.6,alpha=0.5)
+                ax[i].axvline(xdata[rlim]-self.exp_time/2,c='k',lw=0.6,alpha=0.5)        
+                ax[i].plot(xdata,y_fit,c='C0',lw=0.6)
+
+                ax[i].legend(loc='lower left')
+
+                ### bg_sub plot
+                ax_sub[i].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
+                ax_sub[i].axvline(xdata[llim]-self.exp_time/2,c='k',lw=0.6,alpha=0.5)
+                ax_sub[i].axvline(xdata[rlim]-self.exp_time/2,c='k',lw=0.6,alpha=0.5)        
+                ax_sub[i].step(xdata,y_bg_sub,where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
+                ax_sub[i].legend(loc='lower left')
+
+                i += 1
+
+        ax[-1].set_xlim(min(xdata),max(xdata))
+        ax[-1].set_xlabel(f"seconds from {beginning.round('1s').strftime(format='%Y-%m-%d-%H:%M:%S')} UTC")
+        fig.supylabel('count rate [counts/s]')
+        fig.tight_layout()
+        fig.subplots_adjust(hspace=0)
+        fig.show()
+
+        ### bg_sub plot
+        ax_sub[-1].set_xlim(min(xdata),max(xdata))
+        ax_sub[-1].set_xlabel(f"seconds from {beginning.round('1s').strftime(format='%Y-%m-%d-%H:%M:%S')} UTC")
+        fig_sub.supylabel('count rate [counts/s]')
+        fig_sub.tight_layout()
+        fig_sub.subplots_adjust(hspace=0)
+        fig_sub.show()
+
+        if (save_path != None):
+            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+
+            if (os.path.exists(dirpath)==False):
+                os.makedirs(dirpath)
+
+            filepath = dirpath + "lightcurve_fit.png"
+            fig.savefig(filepath)
+
+            ### bg_sub plot
+            filepath_sub = dirpath + "lightcurve_bg_sub.png"
+            fig_sub.savefig(filepath_sub)
+
+
     def check_event(self, event_time, event_type:str, 
                     dtvalue_left:float=1, dtvalue_right:float=1, tunit:str='min', 
-                    plot_fit:bool=False, llim:int=5, rlim:int=10, 
+                    llim:int=5, rlim:int=10, 
                     fit_function:str='linear'or'polynom',
-                    second_locator:list=[0,15,30,45],
+                    gain=4.31,
                     figsize=(9,13),
                     save_path=None):
         '''
-        Returns a lightcurve around specified trigger. If plot_fit=True, also returns a background subtracted lightcurve and statistics for each energy band.
+        Returns a background subtracted lightcurve around specified trigger and statistics for each energy band.
 
         Parameters
         ----------
@@ -382,9 +762,6 @@ class Observation():#MutableSequence):
             time to plot after the trigger in minutes (by default, can be changed by changing 'tunit' parameter, see below)
         tunit: str
             unit of dtvalue_left and dtvalue_right parameters
-        plot_fit: bool
-            if True, returns a background subtracted lightcurve and statistics for each energy band
-            default is False
         llim: int
             index number of the event start from the beginning of the plot 
         rlim: int
@@ -392,8 +769,6 @@ class Observation():#MutableSequence):
         fit_function: str
             if 'linear', a linear function will be used to fit the background
             if 'polynom', a second order polynomial will be used to fit the background
-        second_locator: list
-            list of seconds where tickers should be placed
         figsize: Tuple
             (width,height) of the output figure
         save_path: str
@@ -402,229 +777,44 @@ class Observation():#MutableSequence):
 
         '''
 
-        event_time = pd.to_datetime(event_time)
+        df = self.cut_data_around_trigger(event_time,dtvalue_left,dtvalue_right,tunit)
 
-        if (save_path != None):
-            dirpath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
-            os.makedirs(dirpath, exist_ok=True)
+        ### statistics for the entire energy range
+        beginning, xdata, ydata = self.select_eband(df,'all')
+        ydata = self.count_rate_data(ydata)
 
-        dt_left = pd.Timedelta(dtvalue_left,tunit)
-        dt_right = pd.Timedelta(dtvalue_right,tunit)
-        start = event_time - dt_left
-        end = event_time + dt_right 
-        ncols = int(2**8/2**self.bin_mode) # number of energy bands
-        nrows = int((dtvalue_left+dtvalue_right)*60/self.exp_time) # number of data bins
-        cps = np.zeros((ncols,nrows))
-
-        time_list = []
-        timestamp = []
-
-        j = 0
-        for i in self.data.index:
-            t = self.time_utc[i]
-            if np.logical_and(t > start,t < end).any():
-                time_list.append(t)
-                timestamp.append((j+1)*self.exp_time)
-                for n in range(ncols):
-                    cps[n][j] = self.data[n][i]/self.exp_time
-                j += 1
+        self.get_statistics(xdata,ydata,beginning,llim,rlim,fit_function,
+                            ADC_low=0,ADC_high=256,gain=gain,
+                            event_type=event_type,event_time=event_time,save_path=save_path)
         
-        index_from = int(llim)
-        index_to = int(rlim)
+        ### statistics for the BATSE energy range
+        beginning, xdata, ydata = self.select_eband(df,'batse')
+        ydata = self.count_rate_data(ydata)
 
-        if (fit_function == 'linear'):
-            def function(x,a1,a0):
-                return a1*x + a0
-        elif (fit_function == 'polynom'):
-            def function(x,a2,a1,a0):
-                return a2*x*x + a1*x + a0
+        self.get_statistics(xdata,ydata,beginning,llim,rlim,fit_function,
+                            ADC_low=0,ADC_high=128,gain=gain,
+                            event_type=event_type,event_time=event_time,save_path=save_path)        
 
-        def make_fit(ADC_lower_limit,ADC_upper_limit,f):
-            E_low = ADC_to_keV(ADC=ADC_lower_limit,cutoff=self.cutoff)
-            E_high = ADC_to_keV(ADC=ADC_upper_limit,cutoff=self.cutoff)
-            
-            E_n_bins = int(2**8/2**self.bin_mode)
-            first_band = ADC_lower_limit*E_n_bins/256
-            last_band = ADC_upper_limit*E_n_bins/256
-
-            c = np.zeros(nrows)
-            for band in range(int(first_band),int(last_band)):
-                c += cps[band]
-            
-            # data for background fit
-            xdata = timestamp[:index_from]+timestamp[index_to:]
-            ydata = np.concatenate((c[:index_from],c[index_to:]))
-
-            popt, pcov = opt.curve_fit(f,np.array(xdata),ydata)
-            
-            def cps_bgd(x):
-                return f(x,*popt)
-
-            # stat at peak
-            raw_cr = [c1 - cps_bgd(c2) for c1,c2 in zip(c[index_from:index_to],timestamp[index_from:index_to])]
-            peak_raw_cr = np.max(raw_cr)
-            index_peak = np.where(raw_cr == peak_raw_cr)[0][0]
-
-            peak_time = time_list[index_peak]
-        
-            peak_c = c[index_from:index_to][index_peak]
-            err = np.sqrt(peak_c*self.exp_time)/self.exp_time
-            snr_peak = peak_raw_cr/err
-            peak_raw_cr_err = np.sqrt(peak_c*self.exp_time)/self.exp_time
-            
-            
-            # T90 calculation
-            timestamp_event = timestamp[index_from:index_to+1]
-            c_event = c[index_from:index_to+1]
-            df_t90 = pd.DataFrame(c_event,index=pd.TimedeltaIndex(timestamp_event,unit='s'),columns=['c_event']).resample('1s',loffset=pd.Timedelta(value=self.exp_time/2,unit='second')).ffill()
-
-            c_raw_event = [c1 - cps_bgd(c2) for c1,c2 in zip(df_t90.c_event,pd.Series(df_t90.index).dt.seconds)]
-            c_cum = np.cumsum(c_raw_event)
-            c_cum_5 = c_cum[-1] * 0.05
-            c_cum_95 = c_cum[-1] * 0.95
-            
-            def find_nearest(a, a0):
-                # find element in pd.Series (idxmin) or np.array (argmin) 'a' closest to the scalar value 'a0' and returns its index
-                nearest = np.abs(a - a0).min()
-                nearest_idx = np.abs(a - a0).argmin()
-                # print(nearest, nearest_idx)
-                return nearest_idx
-
-            index_t90_start = find_nearest(c_cum,c_cum_5)
-            index_t90_end = find_nearest(c_cum,c_cum_95)
-
-            t90 = index_t90_end - index_t90_start
-            c_event_t90 = df_t90.c_event[index_t90_start:index_t90_end+1].sum()
-            cntb_t90 = 0
-            for t in pd.Series(df_t90.c_event[index_t90_start:index_t90_end+1].index).dt.seconds:
-                cntb_t90 += cps_bgd(t)
-
-            err_t90 = np.sqrt(c_event_t90)
-            c_raw_event_t90 = c_event_t90-cntb_t90
-            c_raw_event_t90_err = np.sqrt(c_event_t90)
-            snr_t90 = c_raw_event_t90/err_t90
-
-            # print results:
-            output = (f"statistics in {E_low}-{E_high} keV for a {event_type} at {event_time}:\n"+
-                      f"peak time [utc]: {peak_time}\n"+
-                      f"SNR at peak: {round(snr_peak,3)}\n"+
-                      f"count rate [cnt/s] above background at peak: {round(peak_raw_cr,3)} +- {round(peak_raw_cr_err,3)}\n"+
-                      f"T90 [s]: {t90}\n"+
-                      f"SNR in T90: {round(snr_t90,3)}\n"+
-                      f"counts above background in T90: {round(c_raw_event_t90,3)} +- {round(c_raw_event_t90_err,3)}\n")
-            
-            if (save_path != None):
-                filename = f"statistics_{E_low}-{E_high}keV.txt"
-                with open(dirpath+filename, "w") as text_file:
-                    text_file.write(output)
-
-            print(output)
-
-            cps_bg = [cps_bgd(t) for t in timestamp]
-            return cps_bg, popt, E_low, E_high
-        
-        if (plot_fit == True):
-            # statistics for <370 keV
-            make_fit(ADC_lower_limit=0,ADC_upper_limit=128,f=function)
-            # statistics for the entire range
-            cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=0,ADC_upper_limit=256,f=function)
-        
-        ### timeplot
+        ### statistics for individual energy bands 
+        # number of energy bands
+        ncols = int(2**8/2**self.bin_mode)
         # do not plot energy bands below cutoff
         empty_bins = int(self.cutoff/(2**self.bin_mode))
 
-        x_data = np.arange(0,len(time_list)/self.exp_time,self.exp_time)
-        x_event_time = (event_time - time_list[0]).seconds + (event_time - time_list[0]).microseconds*1e-6
-        x_index_from = (time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s') - time_list[0]).seconds + (time_list[index_from]-pd.Timedelta(self.exp_time/2,unit='s') - time_list[0]).microseconds*1e-6
-        x_index_to = (time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s') - time_list[0]).seconds + (time_list[index_to]-pd.Timedelta(self.exp_time/2,unit='s') - time_list[0]).microseconds*1e-6
-        
-        fig, ax = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
-        # fig.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-        # ax[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
-        # ax[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
-
-        if (plot_fit == True):
-            ax[-1].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
-            ax[-1].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
-            ax[-1].plot(x_data,function(np.array(timestamp),*popt),lw=0.5,c='C0')
-                        
-            ### bg_sub timeplot
-            fig_sub, ax_sub = plt.subplots(nrows=ncols-empty_bins+1,figsize=figsize,dpi=200,sharex=True)
-            # fig_sub.suptitle(f"{event_type}: {event_time.strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]}")
-            # ax_sub[-1].xaxis.set_major_locator(mdates.SecondLocator(bysecond=second_locator))
-            # ax_sub[-1].xaxis.set_major_formatter(mdates.DateFormatter('%M:%S'))
-            # ax_sub[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
-            ax_sub[-1].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
-
-            ax_sub[-1].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
-            ax_sub[-1].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
-            ax_sub[-1].step(x_data,cps.sum(axis=0)-cps_bg,c='C0',where='mid',lw=0.75,label=f'{E_low} - {E_high} keV')
-                        
-            ax_sub[-1].legend(loc='lower left')
-
-        ax[-1].step(x_data,cps.sum(axis=0),c='C0',where='mid',lw=0.75,label=f'{ADC_to_keV(0,cutoff=self.cutoff)} - {ADC_to_keV(256,cutoff=self.cutoff)} keV')
-        ax[-1].errorbar(x_data,cps.sum(axis=0),yerr=np.sqrt(cps.sum(axis=0)),c='C0',lw=0.5,fmt=' ')
-        ax[-1].legend(loc='lower left')
-
-        i = 0
         for band in reversed(range(empty_bins,ncols)):
             ADC_low = band*256/ncols
-            E_low = ADC_to_keV(ADC_low,cutoff=self.cutoff)
             ADC_high = (band+1)*256/ncols
-            E_high = ADC_to_keV(ADC_high,cutoff=self.cutoff)
-            if (E_low != E_high):
-                # ax[i].xaxis.set_major_locator(ticker.NullLocator())
-                
-                if (plot_fit == True):
-                    cps_bg, popt, E_low, E_high = make_fit(ADC_lower_limit=ADC_low,ADC_upper_limit=ADC_high,f=function)
-                    ax[i].plot(x_data,function(np.array(timestamp),*popt),lw=0.5,c='C0')
-                    ax[i].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
-                    ax[i].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
 
-                    ### bg_sub plot
-                    # ax_sub[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
-                    ax_sub[i].axhline(0,c='k',ls='--',lw=0.7,alpha=0.5)
-                    ax_sub[i].axvline(x_index_from,c='k',lw=0.5,alpha=0.5)
-                    ax_sub[i].axvline(x_index_to,c='k',lw=0.5,alpha=0.5)        
-                    ax_sub[i].step(x_data,cps[band]-cps_bg,where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
-                    ax_sub[i].legend(loc='lower left')
-                else:
-                    ax[i].axvline(x_event_time,c='k',ls='--',lw=0.7)
-                    ax[-1].axvline(x_event_time,c='k',ls='--',lw=0.7)
+            beginning, xdata, ydata = self.select_eband(df,band)
+            ydata = self.count_rate_data(ydata)
 
-                ax[i].step(x_data,cps[band],where='mid',lw=0.75,c='C0',label=f'{E_low} - {E_high} keV')
-                ax[i].errorbar(x_data,cps[band],yerr=np.sqrt(cps[band]),lw=0.5,c='C0',fmt=' ')
-                ax[i].legend(loc='lower left')
+            self.get_statistics(xdata,ydata,beginning,llim,rlim,fit_function,
+                                ADC_low=ADC_low,ADC_high=ADC_high,gain=gain,
+                                event_type=event_type,event_time=event_time,save_path=save_path)
+        
+        ### create lightcurves
+        self.bg_sub_lightcurve(event_time, event_type, llim, rlim, fit_function, dtvalue_left, dtvalue_right, tunit, figsize, gain, save_path)
 
-                i += 1
-
-        ax[-1].set_xlim(min(x_data),max(x_data))
-        ax[-1].set_xlabel(f"seconds from {time_list[0].strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]} UTC")
-        fig.supylabel('count rate [counts/s]')
-        fig.tight_layout()
-        fig.subplots_adjust(hspace=0)
-        fig.show()
-
-        if (plot_fit == True):
-            ax_sub[-1].set_xlim(min(x_data),max(x_data))
-            ax_sub[-1].set_xlabel(f"seconds from {time_list[0].strftime(format='%Y-%m-%d %H:%M:%S.%f')[:-3]} UTC")
-            fig_sub.supylabel('count rate [counts/s]')
-            fig_sub.tight_layout()
-            fig_sub.subplots_adjust(hspace=0)
-            fig_sub.show()
-
-
-        if (save_path != None):
-            if (plot_fit == True):
-                filepath_sub = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\bg_sub_lightcurve.png"
-                fig_sub.savefig(filepath_sub)
-                filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\lightcurve_fit.png"
-                fig.savefig(filepath)
-            else:
-                filepath = save_path + f"{event_time.strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\lightcurve.png"
-                fig.savefig(filepath)
-            
-        return # file with values
 
     def skymap(self, event_time, event_type, event_ra, event_dec,
                     save_path=None):
