@@ -554,7 +554,7 @@ class Observation():#MutableSequence):
         t90_start_time, t90_end_time, t90, total_counts, total_counts_error, t90_snr = self.t90_stats(xdata,ydata,beginning,llim,rlim,fit_function)
 
         output = (f"trigger: {event_type} at {event_time}:\n"+
-                  f"energy band [ADC]: {ADC_low} - {ADC_high}\n"+
+                  f"energy band [ADC]: {int(ADC_low)} - {int(ADC_high)}\n"+
                   f"energy band [keV]: {ADC_to_keV(ADC_low,self.cutoff,gain)} - {ADC_to_keV(ADC_high,self.cutoff,gain)}\n"+
                   f"gain used for ADC - keV conversion [keV/ch]: {gain}\n"+
                   f"cutoff [ADC]: {self.cutoff}\n"+
@@ -574,7 +574,7 @@ class Observation():#MutableSequence):
             if (os.path.exists(dirpath)==False):
                 os.makedirs(dirpath)
 
-            filename = f"statistics_{ADC_low}-{ADC_high}ADC.txt"
+            filename = f"statistics_{int(ADC_low)}-{int(ADC_high)}ADC.txt"
             with open(dirpath+filename, "w") as text_file:
                 text_file.write(output)
 
