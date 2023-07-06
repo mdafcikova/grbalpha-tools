@@ -414,6 +414,18 @@ class Observation():#MutableSequence):
             ydata = 0
             for i in range(int(128/(2**self.bin_mode))):
                 ydata += df[i]
+        elif (eband == '0-64'):
+            ydata = 0
+            for i in range(int(64/(2**self.bin_mode))):
+                ydata += df[i]
+        elif (eband == '64-128'):
+            ydata_128 = 0
+            for i in range(int(128/(2**self.bin_mode))):
+                ydata_128 += df[i]
+            ydata_64 = 0
+            for i in range(int(64/(2**self.bin_mode))):
+                ydata_64 += df[i]
+            ydata = ydata_128-ydata_64
         else:
             ydata = df[eband]
 
@@ -793,6 +805,22 @@ class Observation():#MutableSequence):
 
         self.get_statistics(xdata,ydata,beginning,llim,rlim,fit_function,
                             ADC_low=0,ADC_high=128,gain=gain,
+                            event_type=event_type,event_time=event_time,save_path=save_path)        
+
+        ### statistics for the 0-64 ADC energy range # for HR plot
+        beginning, xdata, ydata = self.select_eband(df,'0-64')
+        ydata = self.count_rate_data(ydata)
+
+        self.get_statistics(xdata,ydata,beginning,llim,rlim,fit_function,
+                            ADC_low=0,ADC_high=64,gain=gain,
+                            event_type=event_type,event_time=event_time,save_path=save_path)        
+
+        ### statistics for the 64-128 ADC energy range # for HR plot
+        beginning, xdata, ydata = self.select_eband(df,'64-128')
+        ydata = self.count_rate_data(ydata)
+
+        self.get_statistics(xdata,ydata,beginning,llim,rlim,fit_function,
+                            ADC_low=64,ADC_high=128,gain=gain,
                             event_type=event_type,event_time=event_time,save_path=save_path)        
 
         ### statistics for individual energy bands 
