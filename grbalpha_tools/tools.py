@@ -88,7 +88,7 @@ def plot_skymap(event_time, event_type, event_ra, event_dec,
     ax.set_ylabel('Dec')
     fig.tight_layout()
     if (save_path != None):
-        filepath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\skymap.png"
+        filepath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}/skymap.png"
         fig.savefig(filepath)
     fig.show()
 
@@ -581,7 +581,7 @@ class Observation():#MutableSequence):
                   f"counts above background in T90: {round(total_counts,3)} +- {round(total_counts_error,3)}\n")
 
         if (save_path != None):
-            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}/"
 
             if (os.path.exists(dirpath)==False):
                 os.makedirs(dirpath)
@@ -643,7 +643,7 @@ class Observation():#MutableSequence):
         fig.show()
 
         if (save_path != None):
-            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}/"
 
             if (os.path.exists(dirpath)==False):
                 os.makedirs(dirpath)
@@ -739,7 +739,7 @@ class Observation():#MutableSequence):
         fig_sub.show()
 
         if (save_path != None):
-            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}\\"
+            dirpath = save_path + f"{pd.to_datetime(event_time).strftime(format='%Y%m%d-%H%M%S')}_{event_type}/"
 
             if (os.path.exists(dirpath)==False):
                 os.makedirs(dirpath)
