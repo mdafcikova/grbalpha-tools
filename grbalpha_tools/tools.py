@@ -45,8 +45,8 @@ def plot_skymap(event_time, event_type, event_ra, event_dec,
     location = EarthLocation(lon=lon*u.deg, lat=lat*u.deg, height=alt*u.km)
     altaz = AltAz(obstime=Time(event_time), location=location, alt=90*u.deg, az=180*u.deg)
 
-    ra_sat = altaz.transform_to(ICRS).ra.deg
-    dec_sat = altaz.transform_to(ICRS).dec.deg
+    ra_sat = altaz.transform_to(ICRS()).ra.deg
+    dec_sat = altaz.transform_to(ICRS()).dec.deg
 
     dec_nadir = -1*lat #-1*dec_sat
     if (ra_sat < 180):
@@ -164,8 +164,8 @@ class Event():
         # satellite's ra, dec
         location = EarthLocation(lon=lon*u.deg, lat=lat*u.deg)#, height=alt*u.km)
         altaz = AltAz(obstime=Time(self.time), location=location, alt=90*u.deg, az=180*u.deg)
-        ra_sat = altaz.transform_to(ICRS).ra.deg
-        dec_sat = altaz.transform_to(ICRS).dec.deg
+        ra_sat = altaz.transform_to(ICRS()).ra.deg
+        dec_sat = altaz.transform_to(ICRS()).dec.deg
 
         # nadir coordinates
         dec_nadir = -1*lat #-1*dec_sat
