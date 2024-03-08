@@ -287,7 +287,7 @@ class Observation():#MutableSequence):
             keys = [col for col in df.columns if col.startswith('cnt_band')]
             vals = np.arange(len(keys))
             names = {keys[i]:vals[i] for i in range(len(keys))}
-            self.data = df[keys].rename(columns=names).set_axis(self.time_utc.round('ms'))
+            self.data = df[keys].rename(columns=names).set_axis(self.time_utc.round('ms'))/self.exp_time
         else:
             print('ERROR: wrong filename')
 
