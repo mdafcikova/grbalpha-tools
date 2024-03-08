@@ -186,7 +186,7 @@ class Event():
 
         return ra_nadir, dec_nadir, Earth_ra, Earth_dec
 
-    def in_fov(self,sat='GRBAlpha',map=False):
+    def in_fov(self,sat='GRBAlpha',tle_file_path=None,map=False):
         '''
         Checks if event is in satellite's FoV.
 
@@ -202,7 +202,10 @@ class Event():
         # if True = Sun is in FoV
         # if False = Sun in NOT in FoV
 
-        orb = Orbital(sat)
+        if tle_file_path != None:
+            orb = Orbital(sat,tle_file=tle_file_path)
+        else:
+            orb = Orbital(sat)
         lon, lat, alt = orb.get_lonlatalt(self.time)
 
         ra_nadir, dec_nadir, Earth_ra, Earth_dec = self.get_Earth_coord(lon,lat,alt)
